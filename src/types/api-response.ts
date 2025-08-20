@@ -75,15 +75,8 @@ export interface AppEntry {
   category?: CategoryInfo;
 }
 
-// 表单数据类型
-export interface AppFormData {
-  appName: string;
-  appType: string;
-  ip?: string;
-  domain?: string;
-  url?: string;
-  status: "active" | "inactive";
-}
+// 表单数据类型 - 使用统一的类型定义
+// 注意：AppFormData已在 app-management/base.ts 中定义
 
 // 搜索参数类型
 export interface SearchParams {

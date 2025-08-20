@@ -124,11 +124,11 @@ export type ApiPermission = z.infer<typeof apiPermissionSchema>;
 // 预定义权限模板
 export const API_PERMISSION_TEMPLATES = {
   readonly: [
-    { category: "sdk-api", endpoints: ["versions", "audit/logs"] },
+    { category: "sdk-api", endpoints: ["versions"] },
     { category: "app-recognition", endpoints: ["rules"] },
     { category: "crossborder", endpoints: ["rules"] },
     { category: "customization", endpoints: ["status"] },
-    { category: "external", endpoints: ["connection/status", "capability/registered", "statistics"] },
+    { category: "external", endpoints: ["capability/registered", "statistics"] },
   ],
   standard: [
     { category: "sdk-api", endpoints: ["configs", "versions", "audit/logs"] },
@@ -272,6 +272,9 @@ export interface ApiKeyTableRow {
   updatedAt: Date;
   userId: string;
   isExpired: boolean; // 计算出的过期状态
+  // 用户信息
+  userName?: string | null;
+  userEmail?: string | null;
 }
 
 // API分类的界面类型（包含端点信息）
@@ -456,4 +459,8 @@ export interface SystemStatusUI {
   modules?: SystemModuleStatus[];
   disasterRecovery?: DisasterRecovery;
   externalConnections?: ExternalConnection[];
+  overallStatus?: string;
+  systemLoad?: number;
+  activeConnections?: number;
+  uptime?: number;
 }

@@ -269,11 +269,11 @@ export function TrafficTable({
               <TableCell>
                 <ActionButtons
                   onEdit={() => onEdit(rule)}
-                  onDye={() => onDye(rule.id)}
+                  onDye={rule.status === 'active' ? () => onDye(rule.id) : undefined}
                   onTrace={() => onTrace(rule.id)}
                   onReport={() => onReport(rule.id)}
                   onDelete={() => onDelete(rule.id)}
-                  disabled={rule.status !== 'active' && false}
+                  disabled={false}
                 />
               </TableCell>
             </TableRow>

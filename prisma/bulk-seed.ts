@@ -34,6 +34,7 @@ async function main() {
   // 创建管理员用户
   const adminUser = await prisma.user.create({
     data: {
+      // username: "admin",
       email: "admin@admin.com",
       name: "系统管理员",
       role: "admin",
@@ -47,11 +48,12 @@ async function main() {
   for (let i = 0; i < 150; i++) {
     const user = await prisma.user.create({
       data: {
+        // username: `user${i}`,
         email: `user${i}@${faker.internet.domainName()}`,
         name: faker.person.fullName(),
         role: faker.helpers.arrayElement(["user", "admin"]),
         password: faker.internet.password(),
-        image: faker.image.avatar(),
+        // avatar: faker.image.avatar(),
         emailVerified: faker.datatype.boolean() ? faker.date.past() : null,
       },
     });
@@ -71,64 +73,80 @@ async function main() {
   }
   console.log("创建了 120 个帖子");
 
-  // 3. 创建应用分类和条目
+  // 3. 创建应用分类和条目（使用正确的分类ID）
   console.log("创建应用分类数据...");
   const categories = [];
   
-  // 创建主分类
-  const mainCategories = [
-    "系统工具", "网络工具", "开发工具", "数据库工具", "监控工具", 
-    "安全工具", "办公软件", "娱乐应用", "社交应用", "购物应用",
-    "教育应用", "金融应用", "医疗应用", "旅游应用", "新闻应用"
+  // 创建与前端匹配的分类结构
+  const categoryStructure = [
+    { id: "system-tools", name: "系统工具", parentId: null, level: 0, isLeaf: false },
+    { id: "dev-tools", name: "开发工具", parentId: null, level: 0, isLeaf: false },
+    // 子分类
+    { id: "network-tools", name: "网络工具", parentId: "system-tools", level: 1, isLeaf: true },
+    { id: "monitor-tools", name: "监控工具", parentId: "system-tools", level: 1, isLeaf: true },
+    { id: "security-tools", name: "安全工具", parentId: "system-tools", level: 1, isLeaf: true },
+    { id: "db-tools", name: "数据库工具", parentId: "dev-tools", level: 1, isLeaf: true },
+    { id: "ide-tools", name: "IDE工具", parentId: "dev-tools", level: 1, isLeaf: true },
+    // 额外分类（用于测试数据）
+    { id: "office-tools", name: "办公软件", parentId: null, level: 0, isLeaf: false },
+    { id: "entertainment", name: "娱乐应用", parentId: null, level: 0, isLeaf: false },
+    { id: "social", name: "社交应用", parentId: null, level: 0, isLeaf: false },
   ];
 
-  for (const categoryName of mainCategories) {
+  for (const categoryData of categoryStructure) {
     const category = await prisma.appCategory.create({
       data: {
-        name: categoryName,
-        level: 0,
-        appCount: faker.number.int({ min: 5, max: 20 }),
-        isLeaf: false,
+        id: categoryData.id,
+        name: categoryData.name,
+        parentId: categoryData.parentId,
+        level: categoryData.level,
+        appCount: faker.number.int({ min: 3, max: 15 }),
+        isLeaf: categoryData.isLeaf,
       },
     });
     categories.push(category);
-
-    // 为每个主分类创建子分类
-    for (let j = 0; j < faker.number.int({ min: 3, max: 8 }); j++) {
-      const subCategory = await prisma.appCategory.create({
-        data: {
-          name: `${categoryName}-${faker.lorem.word()}`,
-          parentId: category.id,
-          level: 1,
-          appCount: faker.number.int({ min: 1, max: 10 }),
-          isLeaf: true,
-        },
-      });
-      categories.push(subCategory);
-    }
   }
-  console.log(`创建了 ${categories.length} 个应用分类`);
+  console.log(`创建了 ${categories.length} 个应用分类（使用正确的ID）`);
 
-  // 4. 创建应用条目
+  // 4. 创建应用条目（生成有意义的应用名称）
   console.log("创建应用条目数据...");
-  const leafCategories = categories.filter(cat => cat.isLeaf);
-  for (let i = 0; i < 200; i++) {
-    const category = faker.helpers.arrayElement(leafCategories);
+  
+  // 为不同分类定义合适的应用名称模板
+  const appNameTemplates = {
+    "system-tools": ["系统监控", "进程管理器", "任务调度器", "系统优化工具", "磁盘清理"],
+    "dev-tools": ["代码编辑器", "版本控制", "构建工具", "调试器", "包管理器"],
+    "network-tools": ["网络扫描器", "带宽监控", "路由追踪", "DNS工具", "网络诊断"],
+    "monitor-tools": ["性能监控", "日志分析", "告警系统", "资源监控", "健康检查"],
+    "security-tools": ["防火墙", "漏洞扫描", "权限管理", "加密工具", "安全审计"],
+    "db-tools": ["数据库管理", "查询工具", "备份工具", "数据迁移", "性能分析"],
+    "ide-tools": ["集成开发环境", "代码格式化", "语法检查", "重构工具", "插件管理"],
+    "office-tools": ["文档编辑", "表格处理", "演示工具", "邮件客户端", "日程管理"],
+    "entertainment": ["音乐播放器", "视频播放器", "游戏平台", "媒体中心", "流媒体"],
+    "social": ["即时通讯", "视频会议", "社交网络", "论坛系统", "直播平台"],
+  };
+
+  const allCategories = categories.filter(cat => appNameTemplates[cat.id as keyof typeof appNameTemplates]);
+  
+  for (let i = 0; i < 150; i++) {
+    const category = faker.helpers.arrayElement(allCategories);
+    const nameTemplate = faker.helpers.arrayElement(appNameTemplates[category.id as keyof typeof appNameTemplates]);
+    const appName = `${nameTemplate}${faker.number.int({ min: 1, max: 999 })}`;
+    
     await prisma.appEntry.create({
       data: {
-        appName: faker.company.name(),
+        appName: appName,
         appType: category.id,
-        categoryPath: `${category.name}/${faker.lorem.word()}`,
+        categoryPath: category.parentId ? `${categories.find(c => c.id === category.parentId)?.name}/${category.name}` : category.name,
         ip: faker.internet.ip(),
         domain: faker.internet.domainName(),
         url: faker.internet.url(),
-        status: faker.helpers.arrayElement(["active", "inactive", "pending"]),
+        status: faker.helpers.arrayElement(["active", "inactive"]),
         isBuiltIn: faker.datatype.boolean(),
-        confidence: faker.number.float({ min: 0.1, max: 1.0 }),
+        confidence: faker.number.float({ min: 65, max: 98 }),
       },
     });
   }
-  console.log("创建了 200 个应用条目");
+  console.log("创建了 150 个应用条目（有意义的名称）");
 
   // 5. 创建流量染色规则
   console.log("创建流量染色规则数据...");

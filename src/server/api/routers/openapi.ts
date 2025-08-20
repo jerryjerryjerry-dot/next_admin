@@ -170,10 +170,17 @@ export const openApiRouter = createTRPCRouter({
   keys: {
     // 获取所有密钥
     getAll: publicProcedure.query(async ({ ctx }) => {
-      const userId = await getDefaultUserId(ctx);
-
+      // 获取所有密钥，不限制用户（用于演示和测试）
       const keys = await ctx.db.apiKey.findMany({
-        where: { userId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
       });
 
@@ -185,6 +192,9 @@ export const openApiRouter = createTRPCRouter({
         permissionLabels: JSON.parse(key.permissions) as string[],
         quotaUsagePercent: key.quotaLimit ? Math.round((key.quotaUsed / key.quotaLimit) * 100) : 0,
         isExpired: key.expiresAt ? new Date() > key.expiresAt : false,
+        // 包含用户信息
+        userName: key.user.name,
+        userEmail: key.user.email,
       }));
     }),
 
@@ -220,20 +230,17 @@ export const openApiRouter = createTRPCRouter({
     update: publicProcedure
       .input(updateApiKeySchema)
       .mutation(async ({ ctx, input }: { ctx: { db: typeof db }; input: UpdateApiKeyRequest }) => {
-        const userId = await getDefaultUserId(ctx);
-
-        // 检查密钥是否属于当前用户
+        // 检查密钥是否存在
         const existingKey = await ctx.db.apiKey.findFirst({
           where: {
             id: input.id,
-            userId,
           },
         });
 
         if (!existingKey) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "密钥不存在或无权限",
+            message: "密钥不存在",
           });
         }
 
@@ -252,20 +259,15 @@ export const openApiRouter = createTRPCRouter({
     delete: publicProcedure
       .input(z.string())
       .mutation(async ({ ctx, input }) => {
-        const userId = await getDefaultUserId(ctx);
-
-        // 检查密钥是否属于当前用户
+        // 直接删除，不限制用户（用于演示和测试）
         const existingKey = await ctx.db.apiKey.findFirst({
-          where: {
-            id: input,
-            userId,
-          },
+          where: { id: input },
         });
 
         if (!existingKey) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "密钥不存在或无权限",
+            message: "密钥不存在",
           });
         }
 
@@ -283,19 +285,16 @@ export const openApiRouter = createTRPCRouter({
         status: z.enum(["active", "inactive"]),
       }))
       .mutation(async ({ ctx, input }) => {
-        const userId = await getDefaultUserId(ctx);
-
         const existingKey = await ctx.db.apiKey.findFirst({
           where: {
             id: input.id,
-            userId,
           },
         });
 
         if (!existingKey) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "密钥不存在或无权限",
+            message: "密钥不存在",
           });
         }
 
@@ -309,20 +308,17 @@ export const openApiRouter = createTRPCRouter({
     batchOperation: publicProcedure
       .input(batchOperationSchema)
       .mutation(async ({ ctx, input }: { ctx: { db: typeof db }; input: BatchOperationRequest }) => {
-        const userId = await getDefaultUserId(ctx);
-
-        // 验证所有密钥都属于当前用户
+        // 验证所有密钥都存在
         const keys = await ctx.db.apiKey.findMany({
           where: {
             id: { in: input.ids },
-            userId,
           },
         });
 
         if (keys.length !== input.ids.length) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "部分密钥不存在或无权限",
+            message: "部分密钥不存在",
           });
         }
 
@@ -330,7 +326,6 @@ export const openApiRouter = createTRPCRouter({
           await ctx.db.apiKey.deleteMany({
             where: {
               id: { in: input.ids },
-              userId,
             },
           });
         } else if (input.operation === "activate" || input.operation === "deactivate") {
@@ -338,7 +333,6 @@ export const openApiRouter = createTRPCRouter({
           await ctx.db.apiKey.updateMany({
             where: {
               id: { in: input.ids },
-              userId,
             },
             data: { status },
           });
@@ -351,19 +345,16 @@ export const openApiRouter = createTRPCRouter({
     regenerate: publicProcedure
       .input(z.string())
       .mutation(async ({ ctx, input }) => {
-        const userId = await getDefaultUserId(ctx);
-
         const existingKey = await ctx.db.apiKey.findFirst({
           where: {
             id: input,
-            userId,
           },
         });
 
         if (!existingKey) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "密钥不存在或无权限",
+            message: "密钥不存在",
           });
         }
 

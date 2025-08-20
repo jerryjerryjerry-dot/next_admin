@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -16,14 +16,30 @@ const PUBLIC_PATHS = [
 
 export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   const router = useRouter();
+  const [authState, setAuthState] = useState<{
+    isLoading: boolean;
+    isLoggedIn: boolean;
+    userRole: string;
+    currentPath: string;
+  }>({
+    isLoading: true, // 初始化为loading状态，避免hydration不匹配
+    isLoggedIn: false,
+    userRole: "user",
+    currentPath: "",
+  });
 
   useEffect(() => {
-    // 检查登录状态
+    // 在客户端初始化认证状态
     const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
     const userRole = localStorage.getItem("userRole") ?? "user";
-    
-    // 获取当前路径
     const currentPath = window.location.pathname;
+
+    setAuthState({
+      isLoading: false,
+      isLoggedIn,
+      userRole,
+      currentPath,
+    });
 
     // 检查是否是公开页面
     const isPublicPath = PUBLIC_PATHS.some(path => 
@@ -47,22 +63,31 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
 
     // 检查角色权限
     if (isLoggedIn && requiredRole && userRole !== requiredRole) {
-      // 权限不足，可以重定向到首页或显示错误
-      router.push("/");
+      // 权限不足，重定向到用户有权访问的页面
+      if (userRole === "user") {
+        router.push("/traffic"); // user用户重定向到流量管理
+      } else {
+        router.push("/"); // 其他情况重定向到首页
+      }
       return;
     }
   }, [router, requiredRole]);
 
-  // 检查登录状态
-  const isLoggedIn = typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
-  const userRole = typeof window !== "undefined" ? localStorage.getItem("userRole") ?? "user" : "user";
-  
-  // 获取当前路径
-  const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+  // 在加载期间，始终显示loading状态
+  if (authState.isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 检查是否是公开页面
   const isPublicPath = PUBLIC_PATHS.some(path => 
-    currentPath.startsWith(path)
+    authState.currentPath.startsWith(path)
   );
 
   // 如果是公开页面，显示内容
@@ -71,7 +96,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   }
 
   // 如果未登录，显示加载状态
-  if (!isLoggedIn) {
+  if (!authState.isLoggedIn) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -83,7 +108,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   }
 
   // 检查角色权限
-  if (requiredRole && userRole !== requiredRole) {
+  if (requiredRole && authState.userRole !== requiredRole) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

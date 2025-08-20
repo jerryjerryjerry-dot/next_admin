@@ -51,14 +51,14 @@ export class WatermarkAPIService {
     message?: string;
   }> {
     try {
-      const response = await fetch('/api/watermark/add', {
+      const response = await fetch('/api/watermark/embed', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           fileUrl,
-          content,
+          watermarkText: content,
           bizId: bizId ?? `embed_${Date.now()}`
         }),
       });
@@ -76,6 +76,7 @@ export class WatermarkAPIService {
       return {
         success: true,
         taskId: result.taskId ?? '',
+        message: result.message
       };
     } catch (error) {
       console.error('水印嵌入失败:', error);
@@ -114,6 +115,7 @@ export class WatermarkAPIService {
       return {
         success: true,
         taskId: result.taskId ?? '',
+        message: result.message
       };
     } catch (error) {
       console.error('水印提取失败:', error);
@@ -124,24 +126,79 @@ export class WatermarkAPIService {
   // 查询任务状态
   async getTaskStatus(taskId: string): Promise<{
     success: boolean;
-    data: unknown;
+    data: {
+      taskId: string;
+      status: string;
+      progress: number;
+      estimatedTime?: string;
+      result?: {
+        downloadUrl?: string;
+        extractedContent?: string;
+        confidence?: number;
+      };
+    };
     message?: string;
   }> {
     try {
-      const response = await fetch(`/api/watermark/task/${taskId}`);
+      const response = await fetch(`/api/watermark/status/${taskId}`);
       const result = await response.json() as {
         success: boolean;
-        data?: unknown;
+        taskId?: string;
+        status?: string;
+        progress?: number;
+        estimatedTime?: string;
+        result?: any;
         message?: string;
       };
       
-      if (!response.ok || !result.success) {
+      console.log('📋 状态查询API响应:', result);
+      console.log('📋 HTTP状态:', response.status, response.ok);
+      
+      if (!response.ok) {
+        console.error('❌ HTTP响应失败:', response.status, result);
+        throw new Error(`HTTP ${response.status}: ${result.message ?? '状态查询失败'}`);
+      }
+      
+      if (!result.success) {
+        console.error('❌ API返回失败:', result);
         throw new Error(result.message ?? '状态查询失败');
+      }
+      
+      console.log('✅ 状态查询成功:', { 
+        taskId: result.taskId, 
+        status: result.status, 
+        progress: result.progress 
+      });
+
+      // 处理结果数据
+      const processedResult: {
+        downloadUrl?: string;
+        extractedContent?: string;
+        confidence?: number;
+      } = {};
+
+      if (result.result?.data) {
+        if (result.status === 'finished') {
+          // 如果是嵌入任务，result.data是下载URL
+          // 如果是提取任务，result.data是提取的内容
+          if (result.result.data.startsWith('http')) {
+            processedResult.downloadUrl = result.result.data;
+          } else {
+            processedResult.extractedContent = result.result.data;
+            processedResult.confidence = 0.95; // 默认置信度
+          }
+        }
       }
 
       return {
-        success: result.success,
-        data: result.data ?? null,
+        success: true,
+        data: {
+          taskId: result.taskId ?? taskId,
+          status: result.status ?? 'unknown',
+          progress: result.progress ?? 0,
+          estimatedTime: result.estimatedTime,
+          result: processedResult
+        },
         message: result.message,
       };
     } catch (error) {
@@ -153,7 +210,7 @@ export class WatermarkAPIService {
   // 检查服务健康状态
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await fetch('/api/watermark/status', {
+      const response = await fetch('/api/watermark/health', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

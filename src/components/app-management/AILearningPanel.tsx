@@ -34,40 +34,18 @@ interface AISuggestion {
   updatedAt: Date;
 }
 
-export function AILearningPanel() {
+interface AILearningPanelProps {
+  currentTab?: 'builtin' | 'custom';
+}
+
+export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps = {}) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [processingIds, setProcessingIds] = useState<string[]>([]);
 
-  // Mock数据作为fallback
-  const mockSuggestions: AISuggestion[] = [
-    {
-      id: "ai_001",
-      ip: "10.0.0.50",
-      domain: "new-service.internal",
-      predictedType: "数据库工具",
-      confidence: 85.5,
-      reason: "检测到数据库连接模式，端口3306通常用于MySQL",
-      status: "pending",
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-    },
-    {
-      id: "ai_002",
-      domain: "monitoring.example.com",
-      url: "https://monitoring.example.com/metrics",
-      predictedType: "监控工具",
-      confidence: 92.3,
-      reason: "URL路径包含metrics，典型的监控系统特征",
-      status: "pending",
-      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-    },
-  ];
-
   // 获取AI建议数据
   const { 
-    data: suggestions = mockSuggestions,
+    data: suggestions = [],
     isLoading,
     refetch 
   } = api.appManagement.aiSuggestions.getPending.useQuery(
@@ -245,8 +223,15 @@ export function AILearningPanel() {
           ) : pendingSuggestions.length === 0 ? (
             <div className="text-center py-8">
               <Lightbulb className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">暂无AI建议</h3>
-              <p className="text-gray-500">AI正在学习中，暂时没有新的应用建议</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {currentTab === 'builtin' ? '内置应用无需AI建议' : '暂无AI建议'}
+              </h3>
+              <p className="text-gray-500">
+                {currentTab === 'builtin' 
+                  ? '内置应用是系统预定义的，无需AI学习和建议' 
+                  : 'AI正在学习中，暂时没有新的应用建议'
+                }
+              </p>
             </div>
           ) : (
             <>

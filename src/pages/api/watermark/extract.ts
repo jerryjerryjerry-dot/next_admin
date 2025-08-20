@@ -12,58 +12,45 @@ export default async function handler(
     });
   }
 
-  const startTime = Date.now();
-  console.log('\n🔍 [API调用] POST /api/watermark/extract');
-  // 类型安全的请求体解析
-  const body = req.body as { fileUrl?: string; bizId?: string };
-  console.log('📥 请求参数:', {
-    fileUrl: body.fileUrl ? body.fileUrl.substring(0, 50) + '...' : undefined,
-    bizId: body.bizId,
-    timestamp: new Date().toISOString()
-  });
-
   try {
-    const { fileUrl, bizId } = body;
+    const { fileUrl, bizId } = req.body as {
+      fileUrl: string;
+      bizId?: string;
+    };
 
     if (!fileUrl) {
-      const errorResponse = {
+      return res.status(400).json({
         success: false,
-        message: '缺少必需参数: fileUrl'
-      };
-      console.log('❌ 参数验证失败:', errorResponse);
-      console.log('⏱️ 请求耗时:', `${Date.now() - startTime}ms\n`);
-      return res.status(400).json(errorResponse);
+        message: '缺少必要参数: fileUrl'
+      });
     }
 
-    const finalBizId = bizId ?? `extract_${Date.now()}`;
-    console.log('🔄 调用水印提取服务, bizId:', finalBizId);
-    const result = await createExtractWatermarkTask(fileUrl, finalBizId);
-    
-    // 类型安全的结果处理
-    const resultData = result as { data?: string; [key: string]: unknown };
+    console.log('🔍 创建提取任务:', { fileUrl, bizId });
 
-    const successResponse = {
+    const result = await createExtractWatermarkTask(
+      fileUrl,
+      bizId ?? `extract_${Date.now()}`
+    );
+
+    console.log('✅ 提取任务创建成功:', result);
+
+    // 外部API返回格式: {taskId, message, requestId}
+    // 需要转换为前端期望的格式: {success, taskId, message}
+    res.status(200).json({
       success: true,
-      data: result,
-      taskId: resultData.data
-    };
-    console.log('✅ 水印提取任务创建成功:', {
-      taskId: resultData.data,
-      bizId: finalBizId,
-      responseTime: `${Date.now() - startTime}ms`
+      taskId: (result as any).taskId ?? result.data,
+      message: result.message ?? 'Success',
+      requestId: (result as any).requestId ?? result.request_id
     });
-    console.log('📤 响应数据:', successResponse);
-    console.log('⏱️ 总耗时:', `${Date.now() - startTime}ms\n`);
 
-    res.status(200).json(successResponse);
   } catch (error) {
-    console.error('❌ 创建水印提取任务失败:', (error as Error).message);
-    const errorResponse = {
+    console.error('❌ 创建提取任务失败:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
+    res.status(500).json({
       success: false,
-      message: (error as Error).message
-    };
-    console.log('📤 错误响应:', errorResponse);
-    console.log('⏱️ 错误处理耗时:', `${Date.now() - startTime}ms\n`);
-    res.status(500).json(errorResponse);
+      message: '创建提取任务失败',
+      error: errorMessage
+    });
   }
 }

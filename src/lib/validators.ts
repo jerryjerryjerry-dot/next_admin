@@ -188,6 +188,8 @@ export function validateAppForm(data: {
   ip?: string;
   domain?: string;
   url?: string;
+  isBuiltIn?: boolean;
+  confidence?: number;
 }): { isValid: boolean; errors: Record<string, string> } {
   const errors: Record<string, string> = {};
 
@@ -206,6 +208,13 @@ export function validateAppForm(data: {
   const networkValidation = validateNetworkConfig(data.ip, data.domain, data.url);
   if (!networkValidation.isValid) {
     errors.network = networkValidation.error!;
+  }
+
+  // 验证置信度
+  if (data.confidence !== undefined) {
+    if (typeof data.confidence !== 'number' || data.confidence < 0 || data.confidence > 100) {
+      errors.confidence = '置信度必须是0-100之间的数字';
+    }
   }
 
   return {

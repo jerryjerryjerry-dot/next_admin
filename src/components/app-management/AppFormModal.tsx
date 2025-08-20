@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+
 import { useForm } from "react-hook-form";
 import {
   Dialog,
@@ -33,7 +34,8 @@ import { Separator } from "~/components/ui/separator";
 import { RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { api } from "~/utils/api";
 import { useToast } from "~/hooks/use-toast";
-import type { AppEntry, AppFormData } from "~/types/api-response";
+import type { AppEntry } from "~/types/api-response";
+import type { AppFormData } from "~/types/app-management/base";
 import { validateAppForm } from "~/lib/validators";
 
 interface AppFormModalProps {
@@ -44,14 +46,7 @@ interface AppFormModalProps {
   loading?: boolean;
 }
 
-type FormData = {
-  appName: string;
-  appType: string;
-  ip?: string;
-  domain?: string;
-  url?: string;
-  status: "active" | "inactive";
-};
+// 使用统一的类型定义，已在顶部导入
 
 export function AppFormModal({
   isOpen,
@@ -63,24 +58,23 @@ export function AppFormModal({
   const { toast } = useToast();
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  const form = useForm<FormData>({
+  const form = useForm<AppFormData>({
     defaultValues: {
       appName: "",
       appType: "",
+      categoryId: "",
       ip: "",
       domain: "",
       url: "",
       status: "active",
+      isBuiltIn: false,
+      confidence: undefined,
     },
   });
 
-  // Mock 分类数据 (fallback)
-  const mockCategories = [
-    { id: "system-tools", name: "系统工具" },
-    { id: "network-tools", name: "网络工具" },
-    { id: "dev-tools", name: "开发工具" },
-    { id: "db-tools", name: "数据库工具" },
-    { id: "monitor-tools", name: "监控工具" },
+  // 默认的空分类列表 - 当API失败时显示
+  const defaultCategories = [
+    { id: "", name: "正在加载分类数据..." },
   ];
 
   // 获取分类数据
@@ -96,6 +90,13 @@ export function AppFormModal({
     }
   );
 
+  // 调试日志
+  React.useEffect(() => {
+    if (categoriesData) {
+      console.log('✅ AppFormModal API调用成功:', categoriesData);
+    }
+  }, [categoriesData]);
+
   // 定义分类节点类型
   interface CategoryNode {
     id: string;
@@ -110,8 +111,8 @@ export function AppFormModal({
     
     const flatten = (items: CategoryNode[], prefix = "") => {
       items.forEach(item => {
-        // 只添加叶子节点（isLeaf: true）作为可选项
-        if (item.isLeaf) {
+        // 添加叶子节点或没有子节点的节点作为可选项
+        if (item.isLeaf || !item.children || item.children.length === 0) {
           result.push({
             id: item.id,
             name: prefix + item.name
@@ -129,7 +130,16 @@ export function AppFormModal({
     return result;
   };
 
-  const categories = categoriesData ? flattenCategories(categoriesData as CategoryNode[]) : mockCategories;
+  const categories = categoriesData ? flattenCategories(categoriesData as CategoryNode[]) : defaultCategories;
+
+  // 调试日志 - 查看表单下拉框的实际数据
+  React.useEffect(() => {
+    console.log('📋 AppFormModal下拉框选项:', {
+      hasApiData: !!categoriesData,
+      apiDataLength: categoriesData?.length ?? 0,
+      finalCategories: categories,
+    });
+  }, [categoriesData, categories]);
 
   // 当编辑应用时，填充表单
   useEffect(() => {
@@ -141,6 +151,8 @@ export function AppFormModal({
         domain: editingApp.domain ?? "",
         url: editingApp.url ?? "",
         status: editingApp.status,
+        isBuiltIn: editingApp.isBuiltIn ?? false,
+        confidence: editingApp.confidence ?? undefined,
       });
     } else {
       form.reset({
@@ -150,14 +162,49 @@ export function AppFormModal({
         domain: "",
         url: "",
         status: "active",
+        isBuiltIn: false, // 默认值
+        confidence: undefined, // 可选字段
       });
     }
     setValidationErrors({});
   }, [editingApp, form]);
 
-  const handleSubmit = (data: FormData) => {
+  const handleSubmit = (data: AppFormData) => {
+    console.log('🔍 AppFormModal原始表单数据:', data);
+    console.log('🔍 数据类型检查:', {
+      appName: typeof data.appName,
+      appType: typeof data.appType,
+      ip: typeof data.ip,
+      domain: typeof data.domain,
+      url: typeof data.url,
+      status: typeof data.status,
+      isBuiltIn: typeof data.isBuiltIn,
+      confidence: typeof data.confidence,
+    });
+    
+    // 检查是否有空字段
+    const emptyFields = Object.entries(data).filter(([key, value]) => {
+      if (key === 'confidence') return false; // confidence可以为undefined
+      return value === undefined || value === null || value === '';
+    });
+    console.log('🔍 空字段检查:', emptyFields);
+    
+    // 预处理URL字段 - 自动添加协议
+    const processedData = { ...data };
+    if (processedData.url?.trim()) {
+      const url = processedData.url.trim();
+      // 如果URL没有协议，自动添加https://
+      if (!/^https?:\/\//i.exec(url)) {
+        processedData.url = `https://${url}`;
+      }
+    }
+
+    console.log('🔧 AppFormModal处理后数据:', processedData);
+
     // 客户端验证
-    const validation = validateAppForm(data);
+    const validation = validateAppForm(processedData);
+    console.log('✅ AppFormModal验证结果:', validation);
+    
     if (!validation.isValid) {
       setValidationErrors(validation.errors);
       toast({
@@ -169,15 +216,45 @@ export function AppFormModal({
     }
 
     setValidationErrors({});
-    onSubmit(data);
+    console.log('📤 AppFormModal即将提交数据:', processedData);
+    console.log('📤 提交数据JSON:', JSON.stringify(processedData, null, 2));
+    
+    // 确保数据类型转换正确，清理空字符串
+    const finalData: AppFormData = {
+      appName: processedData.appName.trim(),
+      appType: processedData.appType as string,
+      categoryId: processedData.categoryId ?? "1", // 默认分类ID
+      ip: processedData.ip?.trim() ?? undefined,
+      domain: processedData.domain?.trim() ?? undefined,
+      url: processedData.url?.trim() ?? undefined,
+      status: processedData.status,
+      isBuiltIn: processedData.isBuiltIn ?? false,
+      confidence: processedData.confidence,
+    };
+    
+    console.log('📤 最终提交数据:', finalData);
+    onSubmit(finalData);
   };
 
   const watchedValues = form.watch();
-  const hasNetworkInfo = !!(watchedValues.ip ?? watchedValues.domain ?? watchedValues.url);
+  const hasNetworkInfo = !!(
+    watchedValues.ip?.trim() ?? 
+    watchedValues.domain?.trim() ?? 
+    watchedValues.url?.trim()
+  );
+  
+  // 调试网络信息检查
+  console.log('🔍 网络信息检查:', {
+    ip: watchedValues.ip,
+    domain: watchedValues.domain,
+    url: watchedValues.url,
+    hasNetworkInfo,
+    buttonDisabled: loading || !hasNetworkInfo
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
         <DialogHeader>
           <DialogTitle>
             {editingApp ? "编辑应用" : "新建应用"}
@@ -353,7 +430,78 @@ export function AppFormModal({
                           />
                         </FormControl>
                         <FormDescription>
-                          应用的完整访问地址
+                          应用的完整访问地址（自动添加https://前缀）
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                {/* 网络配置验证错误 */}
+                {validationErrors.network && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <div className="flex items-center">
+                      <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
+                      <span className="text-sm text-red-700">{validationErrors.network}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 配置信息 */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">配置信息</h3>
+                  
+                  <FormField
+                    control={form.control}
+                    name="isBuiltIn"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">
+                            内置应用
+                          </FormLabel>
+                          <FormDescription>
+                            将此应用标记为系统内置应用
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={field.value ?? false}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="confidence"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>置信度 (%)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            placeholder="可选，0-100"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(value === '' ? undefined : parseFloat(value));
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          应用识别的置信度，范围0-100
                         </FormDescription>
                       </FormItem>
                     )}

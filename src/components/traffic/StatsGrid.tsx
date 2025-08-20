@@ -2,7 +2,7 @@
 
 import { Database, CheckCircle, Target, TrendingUp, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { api } from "~/utils/api";
+import { api } from "~/trpc/react";
 
 interface StatsCardProps {
   title: string;
@@ -61,10 +61,13 @@ export function StatsGrid() {
   const { data: stats, isLoading, error } = api.traffic.getStats.useQuery(
     undefined,
     {
-      refetchInterval: 30000, // 30秒刷新一次
+      refetchInterval: 2 * 60 * 60 * 1000, // 2小时刷新一次
       retry: 3,
+      staleTime: 2 * 60 * 60 * 1000, // 数据在2小时内认为是新鲜的
     }
   );
+
+
 
   if (error) {
     return (
@@ -85,7 +88,7 @@ export function StatsGrid() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
       <StatsCard
         title="总规则数"
         value={stats?.totalRules ?? "--"}
@@ -111,26 +114,38 @@ export function StatsGrid() {
       />
       
       <StatsCard
-        title="染色执行"
-        value={stats?.todayExecutions.toLocaleString() ?? "--"}
+        title="总流量"
+        value={stats?.totalTraffic ? `${(stats.totalTraffic / 1000000).toFixed(1)}M` : "--"}
         change={{
-          value: "+156",
+          value: stats?.totalTraffic ? `+${Math.floor((stats.totalTraffic - 5000000) / 10000) / 100}M` : "+0",
           type: "increase",
-          label: "今日执行"
+          label: "累积增长"
         }}
         icon={Target}
         loading={isLoading}
       />
       
       <StatsCard
-        title="成功率"
-        value={stats ? `${stats.successRate.toFixed(1)}%` : "--"}
+        title="染色流量"
+        value={stats?.dyedTraffic ? `${(stats.dyedTraffic / 1000000).toFixed(1)}M` : "--"}
         change={{
-          value: "+0.3%",
-          type: "increase",
-          label: "较昨日"
+          value: stats?.dyedTraffic && stats?.totalTraffic ? `${((stats.dyedTraffic / stats.totalTraffic) * 100).toFixed(1)}%` : "--",
+          type: "neutral",
+          label: "染色率"
         }}
         icon={TrendingUp}
+        loading={isLoading}
+      />
+      
+      <StatsCard
+        title="平均延迟"
+        value={stats?.avgResponseTime ? `${stats.avgResponseTime}ms` : "--"}
+        change={{
+          value: stats?.avgResponseTime ? (stats.avgResponseTime < 75 ? "良好" : "一般") : "--",
+          type: stats?.avgResponseTime && stats.avgResponseTime < 75 ? "increase" : "neutral",
+          label: "响应状态"
+        }}
+        icon={CheckCircle}
         loading={isLoading}
       />
     </div>

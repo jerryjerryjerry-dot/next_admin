@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Button } from "~/components/ui/button";
 import { CreateButton, ImportExportButtons } from "~/components/ui/operation-buttons";
@@ -14,10 +14,10 @@ import { ImportExportDialog } from "./ImportExportDialog";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { useToast } from "~/hooks/use-toast";
 import { api } from "~/utils/api";
-import type { AppEntry, SearchParams, AppFormData } from "~/types/api-response";
+import type { AppEntry, SearchParams} from "~/types/api-response";
+import type { AppFormData } from "~/types/app-management/base";
 import { safeConvertToAppEntry } from "~/utils/data-converters";
 import { 
-  Layout, 
   RefreshCw
 } from "lucide-react";
 
@@ -47,6 +47,18 @@ export function AppManagementPage() {
     isBuiltIn: activeTab === "builtin" ? true : false,
   });
 
+  // 添加调试信息
+  useEffect(() => {
+    if (apps) {
+      console.log('API返回数据:', {
+        categoryId: selectedCategoryId,
+        isBuiltIn: activeTab === "builtin" ? true : false,
+        dataCount: apps?.length || 0,
+        data: apps?.slice(0, 3) // 只显示前3条用于调试
+      });
+    }
+  }, [apps, selectedCategoryId, activeTab]);
+
   // 搜索查询
   const { 
     data: searchResults = [], 
@@ -65,9 +77,16 @@ export function AppManagementPage() {
       void refetchApps();
     },
     onError: (error: { message: string }) => {
+      let errorMessage = error.message;
+      
+      // 特殊处理URL验证错误
+      if (error.message.includes("Invalid url")) {
+        errorMessage = "URL格式无效，请确保包含完整的协议（如 https://）";
+      }
+      
       toast({ 
         title: "创建失败", 
-        description: error.message,
+        description: errorMessage,
         variant: "destructive" 
       });
     },
@@ -231,9 +250,14 @@ export function AppManagementPage() {
   };
 
   const handleFormSubmit = (data: AppFormData) => {
+    console.log('📥 AppManagementPage收到表单数据:', data);
+    
     if (editingApp) {
-      updateAppMutation.mutate({ id: editingApp.id, ...data });
+      const updateData = { id: editingApp.id, ...data };
+      console.log('🔄 准备更新应用:', updateData);
+      updateAppMutation.mutate(updateData);
     } else {
+      console.log('🆕 准备创建应用:', data);
       createAppMutation.mutate(data);
     }
   };
@@ -387,40 +411,28 @@ export function AppManagementPage() {
 
   return (
     <div className="space-y-6">
-      {/* 页面标题和操作 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center text-white">
-            <Layout className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">应用管理</h1>
-            <p className="text-gray-600">管理系统中的应用和服务</p>
-          </div>
-        </div>
+      {/* 操作按钮栏 */}
+      <div className="flex items-center justify-end space-x-3">
+        <Button
+          variant="outline"
+          onClick={handleRefresh}
+          className="flex items-center border-gray-300 text-gray-700 hover:bg-gray-100"
+          disabled={isLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          刷新
+        </Button>
         
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            onClick={handleRefresh}
-            className="flex items-center"
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-          
-          <ImportExportButtons
-            onImport={handleImport}
-            onExport={handleExport}
-            loading={isLoading}
-          />
-          
-          <CreateButton
-            onClick={handleCreateApp}
-            loading={createAppMutation.isPending}
-          />
-        </div>
+        <ImportExportButtons
+          onImport={handleImport}
+          onExport={handleExport}
+          loading={isLoading}
+        />
+        
+        <CreateButton
+          onClick={handleCreateApp}
+          loading={createAppMutation.isPending}
+        />
       </div>
 
       {/* 主要内容区域 */}
@@ -442,10 +454,8 @@ export function AppManagementPage() {
             loading={searchLoading}
           />
 
-          {/* AI建议面板 */}
-          {activeTab === "custom" && (
-            <AILearningPanel />
-          )}
+          {/* AI建议面板 - 优化显示逻辑 */}
+          <AILearningPanel currentTab={activeTab} />
 
           {/* 应用列表标签页 */}
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabType)}>

@@ -25,16 +25,35 @@ model Post {
 
 model User {
   id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
+  username      String?   @unique  // 用户名（登录用）
+  email         String    @unique  // 邮箱
+  name          String               // 真实姓名
+  password      String?              // 密码哈希
+  role          String    @default("user") // 角色：admin, user
+  status        String    @default("active") // 状态：active, inactive, suspended
+  
+  // 个人信息
+  phone         String?              // 手机号
+  avatar        String?              // 头像URL
+  department    String?              // 部门
+  position      String?              // 职位
+  description   String?              // 个人简介
+  
+  // 安全相关
+  lastLoginAt   DateTime?            // 最后登录时间
+  lastLoginIp   String?              // 最后登录IP
+  loginAttempts Int       @default(0) // 登录失败次数
+  lockedUntil   DateTime?            // 锁定到期时间
+  
+  // 系统字段
   emailVerified DateTime?
-  image         String?
-  password      String?
-  role          String    @default("user")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  createdById   String?              // 创建者ID（管理员创建用户时）
   
   // 关联关系
+  createdBy            User?                @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers         User[]               @relation("UserCreator")
   posts                Post[]
   accounts             Account[]
   sessions             Session[]
@@ -42,6 +61,14 @@ model User {
   watermarkPolicies   WatermarkPolicy[]
   watermarkRecords    WatermarkRecord[]
   apiKeys             ApiKey[]
+  passwordResets      UserPasswordReset[]
+  loginLogs           UserLoginLog[]
+
+  @@index([username])
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([createdById])
 }
 
 // NextAuth 相关表（简化版，不使用但保留兼容性）
@@ -92,6 +119,61 @@ model PasswordResetToken {
 
   @@index([email])
   @@index([token])
+}
+
+// ==================== 用户管理扩展 ====================
+
+model UserPasswordReset {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  expires     DateTime
+  used        Boolean  @default(false)
+  resetBy     String?  // 重置者ID（管理员重置时）
+  resetType   String   @default("self") // self: 自己重置, admin: 管理员重置
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expires])
+}
+
+model UserLoginLog {
+  id          String   @id @default(cuid())
+  userId      String
+  username    String   // 冗余字段，便于查询
+  loginIp     String
+  userAgent   String?
+  success     Boolean
+  failReason  String?  // 失败原因：wrong_password, user_locked, user_inactive等
+  sessionId   String?  // 成功登录的会话ID
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([loginIp])
+  @@index([success])
+  @@index([createdAt])
+}
+
+model UserSession {
+  id          String   @id @default(cuid())
+  userId      String
+  sessionId   String   @unique
+  loginIp     String
+  userAgent   String?
+  isActive    Boolean  @default(true)
+  lastActivity DateTime @default(now())
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  
+  @@index([userId])
+  @@index([sessionId])
+  @@index([isActive])
+  @@index([expiresAt])
 }
 
 // ==================== 流量管理 ====================
@@ -280,23 +362,30 @@ model ApiCall {
 // ==================== 水印管理 ====================
 
 model WatermarkPolicy {
-  id          String   @id @default(cuid())
-  name        String
-  fileTypes   String
-  sensitivity String
-  embedDepth  Int      @default(5)
-  description String?
-  isDefault   Boolean  @default(false)
-  status      String   @default("active")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById String
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  watermarkText String
+  opacity       Float    @default(0.3)
+  fontSize      Int      @default(24)
+  color         String   @default("#666666")
+  position      String   @default("center") // center, diagonal, corner
+  fileTypes     String?  @default("all")
+  sensitivity   String?  @default("medium")
+  embedDepth    Int      @default(5)
+  isActive      Boolean  @default(true)
+  isDefault     Boolean  @default(false)
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String
   
   createdBy User              @relation(fields: [createdById], references: [id])
   records   WatermarkRecord[]
 
   @@map("watermark_policies")
   @@index([status])
+  @@index([isActive])
   @@index([createdById])
 }
 

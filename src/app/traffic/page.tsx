@@ -16,6 +16,9 @@ import { api } from "~/trpc/react";
 import { convertDBRulesToTrafficRules, handlePromise } from "~/utils/traffic-converters";
 import { useToast } from "~/hooks/use-toast";
 import { getErrorMessage } from "~/types/error";
+import { AuthGuard } from "~/components/AuthGuard";
+import { RequireAnyRole } from "~/components/RequireRole";
+import { AdminLayout } from "~/components/ui/layout";
 import type { 
   TrafficRule, 
   TrafficQueryParams, 
@@ -23,13 +26,13 @@ import type {
   DyeResult 
 } from "~/types/traffic";
 
-export default function TrafficManagement() {
+function TrafficManagement() {
   // 查询参数状态
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [keyword, setKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [appTypeFilter, setAppTypeFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [appTypeFilter, setAppTypeFilter] = useState<string>("all");
 
   // 选择状态
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -55,8 +58,8 @@ export default function TrafficManagement() {
     page,
     pageSize,
     keyword: keyword || undefined,
-    status: statusFilter ? (statusFilter as TrafficQueryParams['status']) : undefined,
-    appType: appTypeFilter ? (appTypeFilter as TrafficQueryParams['appType']) : undefined
+    status: statusFilter && statusFilter !== "all" ? (statusFilter as TrafficQueryParams['status']) : undefined,
+    appType: appTypeFilter && appTypeFilter !== "all" ? (appTypeFilter as TrafficQueryParams['appType']) : undefined
   };
 
   const { data: rulesData, isLoading: rulesLoading, refetch } = api.traffic.getList.useQuery(queryParams);
@@ -191,6 +194,15 @@ export default function TrafficManagement() {
   };
 
   const handleFormSubmit = (data: TrafficRuleFormData) => {
+    console.log('🔍 前端表单提交数据:', data);
+    console.log('🔍 数据字段类型:', {
+      name: typeof data.name,
+      appType: typeof data.appType,
+      protocol: typeof data.protocol,
+      targetIp: typeof data.targetIp,
+      priority: typeof data.priority
+    });
+    
     if (editingRule) {
       updateMutation.mutate({ id: editingRule.id, data });
     } else {
@@ -237,48 +249,39 @@ export default function TrafficManagement() {
 
   const handleReset = () => {
     setKeyword("");
-    setStatusFilter("");
-    setAppTypeFilter("");
+    setStatusFilter("all");
+    setAppTypeFilter("all");
     setPage(1);
     void refetch();
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* 页面头部 */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">流量染色管理</h1>
-              <p className="mt-2 text-gray-600">
-                管理和监控网络流量染色规则，实现精准的流量追踪分析
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => refetch()}
-                disabled={rulesLoading}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${rulesLoading ? 'animate-spin' : ''}`} />
-                刷新
-              </Button>
-              <Button onClick={handleCreateRule} className="bg-gray-900 text-white hover:bg-gray-800">
-                <Plus className="w-4 h-4 mr-2" />
-                新建规则
-              </Button>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-6">
+      {/* 操作按钮栏 */}
+      <div className="flex items-center justify-end space-x-3">
+        <Button
+          variant="outline"
+          onClick={() => refetch()}
+          disabled={rulesLoading}
+          className="border-gray-300 text-gray-700 hover:bg-gray-100"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${rulesLoading ? 'animate-spin' : ''}`} />
+          刷新
+        </Button>
+        <Button 
+          onClick={handleCreateRule} 
+          className="bg-black text-white hover:bg-gray-800 border-black"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          新建规则
+        </Button>
+      </div>
 
-        {/* 统计卡片 */}
-        <div className="mb-8">
-          <StatsGrid />
-        </div>
+      {/* 统计卡片 */}
+      <StatsGrid />
 
-        {/* 操作栏 */}
-        <div className="bg-white rounded-lg border mb-6 p-4">
+      {/* 操作栏 */}
+      <div className="bg-white rounded-lg border p-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             {/* 搜索区域 */}
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
@@ -287,10 +290,15 @@ export default function TrafficManagement() {
                   placeholder="搜索规则名称..."
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  className="w-64"
+                  className="w-64 border-gray-300"
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
-                <Button variant="outline" onClick={handleSearch} disabled={rulesLoading}>
+                <Button 
+                  variant="outline" 
+                  onClick={handleSearch} 
+                  disabled={rulesLoading}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                >
                   <Search className="w-4 h-4 mr-2" />
                   搜索
                 </Button>
@@ -304,7 +312,7 @@ export default function TrafficManagement() {
                   <SelectValue placeholder="状态筛选" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部状态</SelectItem>
+                  <SelectItem value="all">全部状态</SelectItem>
                   <SelectItem value="active">活跃</SelectItem>
                   <SelectItem value="inactive">禁用</SelectItem>
                   <SelectItem value="processing">处理中</SelectItem>
@@ -316,7 +324,7 @@ export default function TrafficManagement() {
                   <SelectValue placeholder="应用类型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部类型</SelectItem>
+                  <SelectItem value="all">全部类型</SelectItem>
                   <SelectItem value="web">Web</SelectItem>
                   <SelectItem value="app">App</SelectItem>
                   <SelectItem value="api">API</SelectItem>
@@ -406,7 +414,6 @@ export default function TrafficManagement() {
             </div>
           </div>
         )}
-      </div>
 
       {/* 弹窗组件 */}
       <RuleFormModal
@@ -437,5 +444,17 @@ export default function TrafficManagement() {
         ruleName={transformedRules.find(r => r.id === reportRuleId)?.name ?? ""}
       />
     </div>
+  );
+}
+
+export default function TrafficPage() {
+  return (
+    <AuthGuard>
+      <RequireAnyRole roles={["admin", "user"]}>
+        <AdminLayout>
+          <TrafficManagement />
+        </AdminLayout>
+      </RequireAnyRole>
+    </AuthGuard>
   );
 }

@@ -6,7 +6,7 @@
  * TL;DR - This is where all the tRPC server stuff is created and plugged in. The pieces you will
  * need to use are documented accordingly near the end.
  */
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
@@ -116,12 +116,24 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(async ({ ctx, next }) => {
-    // For now, we'll use a simple check - in a real app you'd validate session/JWT
-    // This is a placeholder for the simplified auth system
+    // 临时解决方案：为开发环境提供模拟的管理员用户
+    // 在生产环境中，这里应该验证真实的session/JWT
+    const mockUser = {
+      id: "mock-admin-id",
+      username: "admin",
+      email: "admin@admin.com", 
+      name: "系统管理员",
+      role: "admin" as const,
+      status: "active" as const,
+    };
+
     return next({
       ctx: {
         ...ctx,
-        // Add user context here when implementing full session management
+        session: {
+          user: mockUser,
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24小时后过期
+        },
       },
     });
   });
@@ -134,12 +146,31 @@ export const protectedProcedure = t.procedure
 export const adminProcedure = t.procedure
   .use(timingMiddleware)
   .use(async ({ ctx, next }) => {
-    // For now, allowing all requests - you'll need to implement proper admin check
-    // In a real app, you'd check if the user has admin role
+    // 临时解决方案：提供模拟的管理员用户并验证权限
+    const mockUser = {
+      id: "mock-admin-id",
+      username: "admin", 
+      email: "admin@admin.com",
+      name: "系统管理员",
+      role: "admin" as const,
+      status: "active" as const,
+    };
+
+    // 验证是否为管理员
+    if (mockUser.role !== "admin") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "只有管理员可以执行此操作",
+      });
+    }
+
     return next({
       ctx: {
         ...ctx,
-        // Add admin user context here
+        session: {
+          user: mockUser,
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        },
       },
     });
   });

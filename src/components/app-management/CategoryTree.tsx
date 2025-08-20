@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { FolderTree, RefreshCw, Folder, FolderOpen } from "lucide-react";
@@ -30,44 +30,16 @@ export function CategoryTree({
 }: CategoryTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(["all"]));
 
-  // 使用Mock数据作为fallback
-  const mockCategories: CategoryNode[] = [
-    {
-      id: "all",
-      name: "全部分类",
-      parentId: null,
-      level: 0,
-      isLeaf: false,
-      appCount: 12,
-      children: [
-        {
-          id: "system-tools",
-          name: "系统工具",
-          parentId: "all",
-          level: 1,
-          isLeaf: false,
-          appCount: 8,
-          children: [
-            { id: "network-tools", name: "网络工具", parentId: "system-tools", level: 2, isLeaf: true, appCount: 3 },
-            { id: "monitor-tools", name: "监控工具", parentId: "system-tools", level: 2, isLeaf: true, appCount: 2 },
-            { id: "security-tools", name: "安全工具", parentId: "system-tools", level: 2, isLeaf: true, appCount: 3 },
-          ]
-        },
-        {
-          id: "dev-tools",
-          name: "开发工具",
-          parentId: "all",
-          level: 1,
-          isLeaf: false,
-          appCount: 4,
-          children: [
-            { id: "ide-tools", name: "IDE工具", parentId: "dev-tools", level: 2, isLeaf: true, appCount: 1 },
-            { id: "db-tools", name: "数据库工具", parentId: "dev-tools", level: 2, isLeaf: true, appCount: 3 },
-          ]
-        }
-      ]
-    }
-  ];
+  // 默认的"全部分类"节点
+  const defaultAllCategory: CategoryNode = {
+    id: "all",
+    name: "全部分类",
+    parentId: null,
+    level: 0,
+    isLeaf: false,
+    appCount: 0,
+    children: [],
+  };
 
   // 尝试从API获取数据，失败时使用Mock数据
   const { 
@@ -83,15 +55,23 @@ export function CategoryTree({
     }
   );
 
-  // 转换 API 数据到 CategoryNode 格式
-  const categories: CategoryNode[] = apiData ? apiData.map((item: {
-    id: string;
-    name: string;
-    parentId: string | null;
-    level: number;
-    isLeaf: boolean;
-    appCount?: number;
-    children?: Array<{
+  // 调试日志
+  React.useEffect(() => {
+    if (apiData) {
+      console.log('✅ CategoryTree API调用成功:', apiData);
+    }
+    if (error) {
+      console.error('🔥 CategoryTree API调用失败:', error);
+    }
+  }, [apiData, error]);
+
+  // 转换 API 数据到 CategoryNode 格式，构建完整的分类树
+  const categories: CategoryNode[] = React.useMemo(() => {
+    if (!apiData || apiData.length === 0) {
+      return [defaultAllCategory];
+    }
+
+    const apiCategories = apiData.map((item: {
       id: string;
       name: string;
       parentId: string | null;
@@ -105,32 +85,48 @@ export function CategoryTree({
         level: number;
         isLeaf: boolean;
         appCount?: number;
+        children?: Array<{
+          id: string;
+          name: string;
+          parentId: string | null;
+          level: number;
+          isLeaf: boolean;
+          appCount?: number;
+        }>;
       }>;
-    }>;
-  }): CategoryNode => ({
-    id: item.id,
-    name: item.name,
-    parentId: item.parentId ?? null,
-    level: item.level ?? 0,
-    isLeaf: item.isLeaf ?? !item.children?.length,
-    appCount: Number(item.appCount ?? 0),
-    children: item.children ? item.children.map((child): CategoryNode => ({
-      id: child.id,
-      name: child.name,
-      parentId: child.parentId ?? item.id,
-      level: (item.level ?? 0) + 1,
-      isLeaf: child.isLeaf ?? !child.children?.length,
-      appCount: Number(child.appCount ?? 0),
-      children: child.children ? child.children.map((grandChild): CategoryNode => ({
-        id: grandChild.id,
-        name: grandChild.name,
-        parentId: grandChild.parentId ?? child.id,
-        level: (item.level ?? 0) + 2,
-        isLeaf: true,
-        appCount: Number(grandChild.appCount ?? 0),
+    }): CategoryNode => ({
+      id: item.id,
+      name: item.name,
+      parentId: item.parentId ?? null,
+      level: item.level ?? 0,
+      isLeaf: item.isLeaf ?? !item.children?.length,
+      appCount: Number(item.appCount ?? 0),
+      children: item.children ? item.children.map((child): CategoryNode => ({
+        id: child.id,
+        name: child.name,
+        parentId: child.parentId ?? item.id,
+        level: (item.level ?? 0) + 1,
+        isLeaf: child.isLeaf ?? !child.children?.length,
+        appCount: Number(child.appCount ?? 0),
+        children: child.children ? child.children.map((grandChild): CategoryNode => ({
+          id: grandChild.id,
+          name: grandChild.name,
+          parentId: grandChild.parentId ?? child.id,
+          level: (item.level ?? 0) + 2,
+          isLeaf: true,
+          appCount: Number(grandChild.appCount ?? 0),
+        })) : []
       })) : []
-    })) : []
-  })) : mockCategories;
+    }));
+
+    // 计算总应用数量并构建完整树结构
+    const totalAppCount = apiCategories.reduce((sum, cat) => sum + (cat.appCount ?? 0), 0);
+    return [{
+      ...defaultAllCategory,
+      appCount: totalAppCount,
+      children: apiCategories
+    }];
+  }, [apiData, defaultAllCategory]);
 
   const toggleExpanded = (nodeId: string) => {
     setExpandedNodes(prev => {
@@ -149,33 +145,63 @@ export function CategoryTree({
     const isSelected = selectedCategoryId === node.id;
     const hasChildren = node.children && node.children.length > 0;
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onCategorySelect(node.id);
+      }
+      if (hasChildren && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        if ((e.key === 'ArrowRight' && !isExpanded) || (e.key === 'ArrowLeft' && isExpanded)) {
+          toggleExpanded(node.id);
+        }
+      }
+    };
+
+    const handleExpanderKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleExpanded(node.id);
+      }
+    };
+
     return (
       <div key={node.id} className="select-none">
-        <button
-          onClick={() => onCategorySelect(node.id)}
+        <div
           className={cn(
-            "w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors text-left",
+            "w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors cursor-pointer",
             isSelected 
               ? "bg-blue-100 text-blue-700 font-medium" 
               : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
           )}
           style={{ paddingLeft: `${depth * 0.75 + 0.75}rem` }}
+          onClick={() => onCategorySelect(node.id)}
+          onKeyDown={handleKeyDown}
+          tabIndex={0}
+          role="button"
+          aria-pressed={isSelected}
+          aria-expanded={hasChildren ? isExpanded : undefined}
         >
           {hasChildren && (
-            <button
+            <span
               onClick={(e) => {
                 e.stopPropagation();
                 toggleExpanded(node.id);
               }}
-              className="mr-1 p-0.5 rounded hover:bg-gray-200 transition-colors"
+              onKeyDown={handleExpanderKeyDown}
+              className="mr-1 p-0.5 rounded hover:bg-gray-200 transition-colors cursor-pointer"
+              tabIndex={0}
+              role="button"
+              aria-label={isExpanded ? "收起分类" : "展开分类"}
             >
               {isExpanded ? (
                 <FolderOpen className="h-4 w-4" />
               ) : (
                 <Folder className="h-4 w-4" />
               )}
-            </button>
+            </span>
           )}
           
           {!hasChildren && (
@@ -191,7 +217,7 @@ export function CategoryTree({
               {node.appCount}
             </span>
           )}
-        </button>
+        </div>
 
         {hasChildren && isExpanded && (
           <div className="mt-1">

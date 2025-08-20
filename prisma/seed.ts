@@ -12,6 +12,7 @@ async function main() {
     update: {},
     create: {
       email: "admin@admin.com",
+      // username: "admin",
       name: "System Admin",
       role: "admin",
       password: "admin123", // 实际项目中应该加密
@@ -25,6 +26,7 @@ async function main() {
     update: {},
     create: {
       email: "user@example.com",
+      // username: "normaluser",
       name: "Normal User",
       role: "user",
       password: "user123", // 实际项目中应该加密
@@ -38,6 +40,7 @@ async function main() {
     update: {},
     create: {
       email: "test@test.com",
+      // username: "testuser",
       name: "Test User",
       role: "user",
       password: "test123", // 实际项目中应该加密

@@ -126,6 +126,7 @@ async function seedUsers() {
     update: {},
     create: {
       email: "admin@test.com",
+      // username: "admin",
       name: "系统管理员",
       password: await bcrypt.hash("admin123", 12),
       role: "admin",
@@ -138,6 +139,7 @@ async function seedUsers() {
     update: {},
     create: {
       email: "user@test.com",
+      // username: "user",
       name: "普通用户",
       password: await bcrypt.hash("user123", 12),
       role: "user",
@@ -360,11 +362,9 @@ async function seedTrafficRules() {
   const batchSize = 10;
   for (let i = 0; i < rules.length; i += batchSize) {
     const batch = rules.slice(i, i + batchSize);
-    // TODO: 等待 TrafficDyeingRule 模型添加后重新启用
-    // await prisma.trafficDyeingRule.createMany({
-    //   data: batch,
-    //   skipDuplicates: true,
-    // });
+    await prisma.trafficDyeingRule.createMany({
+      data: batch,
+    });
     console.log(`📝 已创建 ${Math.min(i + batchSize, rules.length)}/${rules.length} 条规则`);
   }
 

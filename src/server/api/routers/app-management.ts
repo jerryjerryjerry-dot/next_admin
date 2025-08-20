@@ -1,19 +1,24 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure, adminProcedure } from "~/server/api/trpc";
 import type { Prisma } from "@prisma/client";
 
 // 输入验证schema
 const createAppSchema = z.object({
   appName: z.string().min(1, "应用名称不能为空"),
   appType: z.string().min(1, "必须选择分类"),
-  ip: z.string().optional(),
-  domain: z.string().optional(),
-  url: z.string().url().optional(),
+  ip: z.string().optional().or(z.literal("")),
+  domain: z.string().optional().or(z.literal("")),
+  url: z.string().url().optional().or(z.literal("")),
   status: z.enum(["active", "inactive"]).default("active"),
   isBuiltIn: z.boolean().default(false),
   confidence: z.number().min(0).max(100).optional(),
 }).refine(
-  (data) => data.ip ?? data.domain ?? data.url,
+  (data) => {
+    const hasIP = data.ip && data.ip.trim() !== "";
+    const hasDomain = data.domain && data.domain.trim() !== "";
+    const hasURL = data.url && data.url.trim() !== "";
+    return hasIP || hasDomain || hasURL;
+  },
   {
     message: "IP、域名、URL至少需要填写一个",
     path: ["ip"],

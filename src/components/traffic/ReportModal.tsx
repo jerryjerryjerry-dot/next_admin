@@ -132,66 +132,77 @@ export function ReportModal({ open, onClose, ruleId, ruleName }: ReportModalProp
   const generateReportMutation = api.traffic.generateReport.useMutation({
     onSuccess: (result) => {
       if (result.success && result.data) {
-        // 转换API数据为组件期望的格式
-        const transformedData: PerformanceReport = {
-          ruleId: result.data.ruleId,
-          dyeId: `dye_${Date.now()}`,
-          reportTime: result.data.generatedAt,
-          summary: {
-            totalRequests: result.data.summary.totalRequests,
-            dyedRequests: result.data.summary.dyedRequests,
-            successRate: result.data.summary.successRate,
-            avgLatency: result.data.summary.avgLatency,
-            errorCount: Math.floor(result.data.summary.totalRequests * result.data.summary.errorRate / 100),
-            peakHours: [9, 14, 20], // 示例峰值小时
-          },
-          metrics: {
-            latencyDistribution: [
-              { range: "0-50ms", count: Math.floor(result.data.summary.totalRequests * 0.3), percentage: 30 },
-              { range: "50-100ms", count: Math.floor(result.data.summary.totalRequests * 0.4), percentage: 40 },
-              { range: "100-200ms", count: Math.floor(result.data.summary.totalRequests * 0.2), percentage: 20 },
-              { range: "200ms+", count: Math.floor(result.data.summary.totalRequests * 0.1), percentage: 10 },
-            ],
-            errorTypes: [
-              { type: "连接超时", count: 15, percentage: 60 },
-              { type: "服务不可用", count: 8, percentage: 32 },
-              { type: "其他错误", count: 2, percentage: 8 },
-            ],
-            hourlyStats: result.data.trends.map((trend, index) => ({
-              hour: index,
-              requests: trend.requests,
-              errors: trend.errors,
-              avgLatency: Math.random() * 100 + 50, // 随机延迟
-            })),
-          },
-          anomalies: [
-            {
-              type: "high_latency" as const,
-              severity: "high" as const,
-              description: "检测到异常高延迟",
-              affectedRequests: 25,
-              timestamp: new Date(Date.now() - 3600000).toISOString(),
+        // 优化：使用异步处理避免阻塞UI
+        setTimeout(() => {
+          const totalRequests = result.data.summary.totalRequests;
+          const errorRate = result.data.summary.errorRate;
+          
+          // 预计算常用值，避免重复计算
+          const errorCount = Math.floor(totalRequests * errorRate / 100);
+          const latencyBase = [0.3, 0.4, 0.2, 0.1]; // 延迟分布比例
+          
+          const transformedData: PerformanceReport = {
+            ruleId: result.data.ruleId,
+            dyeId: `dye_${Date.now()}`,
+            reportTime: result.data.generatedAt,
+            summary: {
+              totalRequests,
+              dyedRequests: result.data.summary.dyedRequests,
+              successRate: result.data.summary.successRate,
+              avgLatency: result.data.summary.avgLatency,
+              errorCount,
+              peakHours: [9, 14, 20],
             },
-            {
-              type: "error_spike" as const,
-              severity: "medium" as const,
-              description: "错误率略高于正常水平",
-              affectedRequests: 12,
-              timestamp: new Date(Date.now() - 1800000).toISOString(),
+            metrics: {
+              latencyDistribution: [
+                { range: "0-50ms", count: Math.floor(totalRequests * latencyBase[0]!), percentage: 30 },
+                { range: "50-100ms", count: Math.floor(totalRequests * latencyBase[1]!), percentage: 40 },
+                { range: "100-200ms", count: Math.floor(totalRequests * latencyBase[2]!), percentage: 20 },
+                { range: "200ms+", count: Math.floor(totalRequests * latencyBase[3]!), percentage: 10 },
+              ],
+              errorTypes: [
+                { type: "连接超时", count: 15, percentage: 60 },
+                { type: "服务不可用", count: 8, percentage: 32 },
+                { type: "其他错误", count: 2, percentage: 8 },
+              ],
+              hourlyStats: result.data.trends.map((trend, index) => ({
+                hour: index,
+                requests: trend.requests,
+                errors: trend.errors,
+                avgLatency: 50 + (index % 3) * 25, // 优化：减少随机计算
+              })),
             },
-          ],
-          recommendations: [
-            "考虑在峰值时间增加服务器资源",
-            "优化数据库查询以减少延迟",
-            "增加监控覆盖以提前发现问题",
-            "实施熔断器模式以提高系统稳定性",
-          ],
-        };
-        setReportData(transformedData);
-        toast({ title: "报告生成成功" });
+            anomalies: [
+              {
+                type: "high_latency" as const,
+                severity: "high" as const,
+                description: "检测到异常高延迟",
+                affectedRequests: 25,
+                timestamp: new Date(Date.now() - 3600000).toISOString(),
+              },
+              {
+                type: "error_spike" as const,
+                severity: "medium" as const,
+                description: "错误率略高于正常水平",
+                affectedRequests: 12,
+                timestamp: new Date(Date.now() - 1800000).toISOString(),
+              },
+            ],
+            recommendations: [
+              "考虑在峰值时间增加服务器资源",
+              "优化数据库查询以减少延迟",
+              "增加监控覆盖以提前发现问题",
+              "实施熔断器模式以提高系统稳定性",
+            ],
+          };
+          setReportData(transformedData);
+          setLoading(false);
+          toast({ title: "报告生成成功" });
+        }, 0); // 异步处理，不阻塞UI
       }
     },
     onError: (error) => {
+      setLoading(false);
       toast({ 
         title: "报告生成失败", 
         description: getErrorMessage(error),
@@ -200,29 +211,25 @@ export function ReportModal({ open, onClose, ruleId, ruleName }: ReportModalProp
     },
   });
 
-  const loadReportData = useCallback(() => {
-    if (!ruleId) return;
-    
-    setLoading(true);
-    generateReportMutation.mutate({ 
-      id: ruleId, 
-      timeRange 
-    });
-  }, [ruleId, timeRange, generateReportMutation]);
-
   useEffect(() => {
     if (open && ruleId) {
-      loadReportData();
+      setLoading(true);
+      generateReportMutation.mutate({ 
+        id: ruleId, 
+        timeRange 
+      });
     } else if (!open) {
       // 清理状态，防止数据残留
       setReportData(null);
       setLoading(false);
     }
-  }, [open, ruleId, loadReportData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, ruleId, timeRange]);
 
-  useEffect(() => {
-    setLoading(generateReportMutation.isPending);
-  }, [generateReportMutation.isPending]);
+  // 移除这个 useEffect，因为 loading 状态已经在主 useEffect 中处理
+  // useEffect(() => {
+  //   setLoading(generateReportMutation.isPending);
+  // }, [generateReportMutation.isPending]);
 
   const handleExport = () => {
     if (!reportData) return;

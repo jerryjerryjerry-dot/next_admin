@@ -4,6 +4,7 @@ import { appManagementRouter } from "~/server/api/routers/app-management";
 import { trafficRouter } from "~/server/api/routers/traffic";
 import { openApiRouter } from "~/server/api/routers/openapi";
 import { watermarkRouter } from "~/server/api/routers/watermark";
+import { userManagementRouter } from "~/server/api/routers/user-management";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -18,6 +19,7 @@ export const appRouter = createTRPCRouter({
   traffic: trafficRouter,
   openApi: openApiRouter,
   watermark: watermarkRouter,
+  userManagement: userManagementRouter,
 });
 
 // export type definition of API

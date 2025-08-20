@@ -67,6 +67,7 @@ export default function AuthPage() {
 
         // 登录成功，存储用户信息
         localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("userId", result.id);
         localStorage.setItem("userEmail", result.email ?? "");
         localStorage.setItem("userName", result.name ?? "");
         localStorage.setItem("userRole", result.role);

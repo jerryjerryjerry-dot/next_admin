@@ -109,7 +109,8 @@ export interface TrafficStats {
   successRate: number;
   totalTraffic: number;
   dyedTraffic: number;
-  timestamp: string;
+  avgResponseTime: number;
+  errorRate: number;
 }
 
 // 数据转换函数类型

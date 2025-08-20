@@ -9,10 +9,15 @@ export default function Home() {
   useEffect(() => {
     // 检查登录状态
     const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+    const userRole = localStorage.getItem("userRole") ?? "user";
     
     if (isLoggedIn) {
-      // 如果已登录，直接进入应用管理
-      router.push("/app-management");
+      // 根据用户角色重定向到合适的页面
+      if (userRole === "admin") {
+        router.push("/app-management"); // admin用户进入应用管理
+      } else {
+        router.push("/traffic"); // user用户进入流量管理
+      }
     } else {
       // 如果未登录，重定向到登录页
       router.push("/auth");
