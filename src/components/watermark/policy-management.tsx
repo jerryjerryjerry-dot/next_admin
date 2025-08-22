@@ -60,19 +60,44 @@ export function PolicyManagement() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [total, setTotal] = useState(0);
 
   // 获取策略列表
   const fetchPolicies = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/watermark/policies');
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        pageSize: pageSize.toString(),
+      });
+      
+      if (searchKeyword.trim()) {
+        params.append('search', searchKeyword.trim());
+      }
+      
+      if (statusFilter !== 'all') {
+        params.append('active', (statusFilter === 'active').toString());
+      }
+      
+      const response = await fetch(`/api/watermark/policies?${params}`);
       const result = await response.json() as {
         success: boolean;
         data: WatermarkPolicy[];
+        total: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
       };
 
       if (result.success) {
         setPolicies(result.data);
+        setTotal(result.total);
+        setTotalPages(result.totalPages);
       }
     } catch (error) {
       console.error('获取策略列表失败:', error);
@@ -83,7 +108,12 @@ export function PolicyManagement() {
 
   useEffect(() => {
     void fetchPolicies();
-  }, []);
+  }, [currentPage, searchKeyword, statusFilter]);
+
+  // 搜索和筛选变化时重置页码
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchKeyword, statusFilter]);
 
   // 创建策略
   const handleCreatePolicy = async () => {
@@ -435,19 +465,8 @@ export function PolicyManagement() {
     });
   };
 
-  // 筛选策略
-  const filteredPolicies = policies.filter(policy => {
-    const matchesSearch = !searchKeyword || 
-      policy.name.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-      policy.description.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-      policy.watermarkText.toLowerCase().includes(searchKeyword.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || 
-      (statusFilter === "active" && policy.isActive) ||
-      (statusFilter === "inactive" && !policy.isActive);
-    
-    return matchesSearch && matchesStatus;
-  });
+  // 现在筛选和搜索在后端处理，直接使用policies
+  const filteredPolicies = policies;
 
   // 全选/取消全选
   const handleSelectAll = (checked: boolean) => {
@@ -777,6 +796,66 @@ export function PolicyManagement() {
           </Card>
         ))}
       </div>
+
+      {/* 分页 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center space-x-4 mt-6">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || isLoading}
+              className="border-gray-300"
+            >
+              上一页
+            </Button>
+            
+            <div className="flex items-center space-x-1">
+              {/* 显示页码按钮 */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                    disabled={isLoading}
+                    className={currentPage === pageNum ? "bg-gray-800 text-white" : "border-gray-300"}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages || isLoading}
+              className="border-gray-300"
+            >
+              下一页
+            </Button>
+          </div>
+          
+          <div className="text-sm text-gray-600">
+            第 {currentPage} 页，共 {totalPages} 页 | 总计 {total} 条记录
+          </div>
+        </div>
+      )}
 
       {filteredPolicies.length === 0 && (
         <div className="text-center py-12">

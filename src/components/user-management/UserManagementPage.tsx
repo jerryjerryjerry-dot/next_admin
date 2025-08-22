@@ -191,7 +191,7 @@ export function UserManagementPage() {
       {/* 操作按钮栏 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <Button
+          {/* <Button
             variant="outline"
             onClick={handleRefresh}
             disabled={usersLoading || statsLoading}
@@ -207,7 +207,7 @@ export function UserManagementPage() {
           >
             <Download className="w-4 h-4 mr-2" />
             导出
-          </Button>
+          </Button> */}
           <Button 
             onClick={() => setShowCreateModal(true)}
             className="bg-black text-white hover:bg-gray-800 border-black"

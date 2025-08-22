@@ -61,9 +61,17 @@ export function StatsGrid() {
   const { data: stats, isLoading, error } = api.traffic.getStats.useQuery(
     undefined,
     {
-      refetchInterval: 2 * 60 * 60 * 1000, // 2小时刷新一次
+      refetchInterval: (data) => {
+        // 如果平均延迟 < 30ms，则1秒刷新一次（实时更新）
+        // 否则2小时刷新一次（增量更新）
+        const avgResponseTime = data?.avgResponseTime ?? 100;
+        return avgResponseTime < 30 ? 1000 : 2 * 60 * 60 * 1000;
+      },
       retry: 3,
-      staleTime: 2 * 60 * 60 * 1000, // 数据在2小时内认为是新鲜的
+      staleTime: (data) => {
+        const avgResponseTime = data?.avgResponseTime ?? 100;
+        return avgResponseTime < 30 ? 0 : 2 * 60 * 60 * 1000;
+      },
     }
   );
 
@@ -114,10 +122,10 @@ export function StatsGrid() {
       />
       
       <StatsCard
-        title="总流量"
-        value={stats?.totalTraffic ? `${(stats.totalTraffic / 1000000).toFixed(1)}M` : "--"}
+        title="月度总流量"
+        value={stats?.totalTraffic ? `${(stats.totalTraffic / 1000000000).toFixed(2)}GB` : "--"}
         change={{
-          value: stats?.totalTraffic ? `+${Math.floor((stats.totalTraffic - 5000000) / 10000) / 100}M` : "+0",
+          value: stats?.totalTraffic ? `+${Math.floor((stats.totalTraffic - 5000000000) / 10000000) / 100}GB` : "+0",
           type: "increase",
           label: "累积增长"
         }}
@@ -127,7 +135,7 @@ export function StatsGrid() {
       
       <StatsCard
         title="染色流量"
-        value={stats?.dyedTraffic ? `${(stats.dyedTraffic / 1000000).toFixed(1)}M` : "--"}
+        value={stats?.dyedTraffic ? `${(stats.dyedTraffic / 1000000000).toFixed(2)}GB` : "--"}
         change={{
           value: stats?.dyedTraffic && stats?.totalTraffic ? `${((stats.dyedTraffic / stats.totalTraffic) * 100).toFixed(1)}%` : "--",
           type: "neutral",

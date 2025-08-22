@@ -8,11 +8,32 @@ export default async function handler(
   try {
     if (req.method === 'GET') {
       // 获取策略列表
-      const { active } = req.query;
+      const { active, page, pageSize, search } = req.query;
       
-      // 从数据库获取策略
-      const whereCondition = active === 'true' ? { isActive: true } : {};
+      // 解析分页参数
+      const currentPage = parseInt(page as string) || 1;
+      const limit = parseInt(pageSize as string) || 20;
+      const offset = (currentPage - 1) * limit;
       
+      // 构建查询条件
+      const whereCondition: any = {};
+      
+      if (active === 'true') {
+        whereCondition.isActive = true;
+      }
+      
+      if (search && typeof search === 'string' && search.trim()) {
+        whereCondition.OR = [
+          { name: { contains: search.trim() } },
+          { description: { contains: search.trim() } },
+          { watermarkText: { contains: search.trim() } },
+        ];
+      }
+      
+      // 获取总数
+      const total = await db.watermarkPolicy.count({ where: whereCondition });
+      
+      // 分页查询
       const policies = await db.watermarkPolicy.findMany({
         where: whereCondition,
         include: {
@@ -26,13 +47,18 @@ export default async function handler(
         },
         orderBy: {
           createdAt: 'desc'
-        }
+        },
+        skip: offset,
+        take: limit,
       });
 
       res.status(200).json({
         success: true,
         data: policies,
-        total: policies.length
+        total,
+        page: currentPage,
+        pageSize: limit,
+        totalPages: Math.ceil(total / limit)
       });
 
     } else if (req.method === 'POST') {

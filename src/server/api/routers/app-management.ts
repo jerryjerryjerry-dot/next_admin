@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure, protectedProcedure, adminProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import type { Prisma } from "@prisma/client";
 
 // 输入验证schema
@@ -211,6 +211,9 @@ export const appManagementRouter = createTRPCRouter({
         categoryId: z.string().optional(),
         isBuiltIn: z.boolean().optional(),
         status: z.enum(["active", "inactive"]).optional(),
+        page: z.number().min(1).default(1),
+        pageSize: z.number().min(1).max(100).default(20),
+        search: z.string().optional(),
       }))
       .query(async ({ ctx, input }) => {
         const where: Prisma.AppEntryWhereInput = {};
@@ -227,16 +230,32 @@ export const appManagementRouter = createTRPCRouter({
           where.status = input.status;
         }
 
+        // 搜索功能 (SQLite不支持insensitive模式，移除mode参数)
+        if (input.search?.trim()) {
+          where.OR = [
+            { appName: { contains: input.search.trim() } },
+            { ip: { contains: input.search.trim() } },
+            { domain: { contains: input.search.trim() } },
+            { url: { contains: input.search.trim() } },
+          ];
+        }
+
+        // 获取总数
+        const total = await ctx.db.appEntry.count({ where });
+
+        // 分页查询
         const apps = await ctx.db.appEntry.findMany({
           where,
           include: {
             category: true,
           },
           orderBy: { createdAt: "desc" },
+          skip: (input.page - 1) * input.pageSize,
+          take: input.pageSize,
         });
 
         // 转换数据格式以匹配前端期望的类型
-        return apps.map(app => ({
+        const transformedApps = apps.map(app => ({
           ...app,
           ip: app.ip ?? undefined,
           domain: app.domain ?? undefined,
@@ -254,6 +273,14 @@ export const appManagementRouter = createTRPCRouter({
             isLeaf: app.category.isLeaf,
           } : undefined
         }));
+
+        return {
+          data: transformedApps,
+          total,
+          page: input.page,
+          pageSize: input.pageSize,
+          totalPages: Math.ceil(total / input.pageSize),
+        };
       }),
 
     // 根据ID获取单个应用

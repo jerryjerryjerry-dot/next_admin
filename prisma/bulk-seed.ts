@@ -184,13 +184,19 @@ async function main() {
 
   // 6. 创建AI学习建议
   console.log("创建AI学习建议数据...");
+  // 使用实际的分类ID而不是通用类型
+  const validCategoryIds = [
+    "system-tools", "dev-tools", "network-tools", "db-tools", "monitor-tools", 
+    "security-tools", "office-tools", "ide-tools", "entertainment", "social"
+  ];
+  
   for (let i = 0; i < 100; i++) {
     await prisma.aiLearnSuggestion.create({
       data: {
         ip: faker.internet.ip(),
         domain: faker.internet.domainName(),
         url: faker.internet.url(),
-        predictedType: faker.helpers.arrayElement(appTypes),
+        predictedType: faker.helpers.arrayElement(validCategoryIds),
         confidence: faker.number.float({ min: 0.1, max: 1.0 }),
         reason: faker.lorem.sentence(),
         status: faker.helpers.arrayElement(["pending", "approved", "rejected"]),

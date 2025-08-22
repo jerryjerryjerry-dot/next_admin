@@ -1,0 +1,56 @@
+version: '3.8'
+
+# 简化的部署配置 - 使用预构建镜像
+services:
+  app:
+    # 使用Docker Hub镜像
+    image: your-username/t3-app:latest
+    # 或使用本地镜像
+    # image: t3-app:latest
+    
+    container_name: t3-app-prod
+    ports:
+      - "3000:3000"
+    
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./prod.db
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-this-secret}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-https://yourdomain.com}
+    
+    volumes:
+      # 数据持久化
+      - ./data/database:/app/prisma
+      - ./data/uploads:/app/public/uploads
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    networks:
+      - app-network
+
+  # 可选: Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: t3-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./data/uploads:/var/www/uploads:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

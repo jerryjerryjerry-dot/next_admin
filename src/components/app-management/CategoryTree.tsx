@@ -210,10 +210,10 @@ export function CategoryTree({
             </div>
           )}
 
-          <span className="flex-1">{node.name}</span>
+          <span className="flex-1 truncate" title={node.name}>{node.name}</span>
           
           {node.appCount !== undefined && (
-            <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full">
+            <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full flex-shrink-0">
               {node.appCount}
             </span>
           )}

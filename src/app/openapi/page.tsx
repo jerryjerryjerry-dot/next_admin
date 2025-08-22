@@ -35,12 +35,9 @@ import { useToast } from "~/hooks/use-toast";
 import { CreateApiKeyModal } from "~/components/openapi/CreateApiKeyModal";
 import { ViewApiKeyModal } from "~/components/openapi/ViewApiKeyModal";
 import { ApiTestModal } from "~/components/openapi/ApiTestModal";
-import { RealTimeChart } from "~/components/openapi/RealTimeChart";
-import { SystemMonitorDashboard } from "~/components/openapi/SystemMonitorCharts";
 import { PandaTechChart } from "~/components/openapi/PandaTechChart";
 import { PandaTechRadar } from "~/components/openapi/PandaTechRadar";
 import { PandaTechRing } from "~/components/openapi/PandaTechRing";
-import { PandaTechDashboard } from "~/components/openapi/PandaTechDashboard";
 import { 
   type TabValue, 
   type ApiKeyTableRow, 
@@ -61,8 +58,13 @@ const ApiKeyManagement = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedApiKey, setSelectedApiKey] = useState<ApiKeyTableRow | null>(null);
 
-  // 获取API密钥列表
-  const { data: apiKeys = [], isLoading, refetch } = api.openApi.keys.getAll.useQuery();
+  // 获取API密钥列表，保持缓存避免tab切换时数据丢失
+  const { data: apiKeys = [], isLoading, refetch } = api.openApi.keys.getAll.useQuery(undefined, {
+    staleTime: 2 * 60 * 1000, // 2分钟内认为数据是新鲜的
+    gcTime: 10 * 60 * 1000, // 缓存10分钟
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
 
   // 删除密钥
   const deleteMutation = api.openApi.keys.delete.useMutation({
@@ -151,15 +153,7 @@ const ApiKeyManagement = () => {
               className="pl-10 w-64"
             />
           </div>
-          <Button
-            variant="outline"
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="border-gray-300 text-gray-700 hover:bg-gray-100"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
+
         </div>
         
         <div className="flex items-center space-x-2">
@@ -544,22 +538,39 @@ const ApiDocumentation = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedEndpoint, setSelectedEndpoint] = useState<string>("");
 
-  // 获取API分类
-  const { data: categories = [], isLoading } = api.openApi.categories.getAll.useQuery();
+  // 获取API分类，保持缓存避免tab切换时数据丢失
+  const { data: categories = [], isLoading } = api.openApi.categories.getAll.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000, // 5分钟内认为数据是新鲜的
+    gcTime: 30 * 60 * 1000, // 缓存30分钟
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
 
   // 类型安全的数据转换
   const typedCategories: ApiCategoryWithEndpoints[] = Array.isArray(categories) ? categories : [];
 
-  // 获取选中分类的详细信息
+  // 获取选中分类的详细信息，保持缓存
   const { data: categoryDetail } = api.openApi.categories.getById.useQuery(
     selectedCategory,
-    { enabled: !!selectedCategory }
+    { 
+      enabled: !!selectedCategory,
+      staleTime: 5 * 60 * 1000, // 5分钟内认为数据是新鲜的
+      gcTime: 30 * 60 * 1000, // 缓存30分钟
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    }
   );
 
-  // 获取选中端点的详细信息
+  // 获取选中端点的详细信息，保持缓存
   const { data: endpointDetail } = api.openApi.endpoints.getById.useQuery(
     selectedEndpoint,
-    { enabled: !!selectedEndpoint }
+    { 
+      enabled: !!selectedEndpoint,
+      staleTime: 5 * 60 * 1000, // 5分钟内认为数据是新鲜的
+      gcTime: 30 * 60 * 1000, // 缓存30分钟
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    }
   );
 
   return (
@@ -800,25 +811,46 @@ const ApiMonitoring = () => {
     failedCalls: number;
     responseTime: number;
   }>>([]);
+  
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
 
   
-  // 获取统计数据 - 使用react-query的自动刷新
+  // 获取统计数据 - 使用react-query的自动刷新，保持缓存避免tab切换时数据丢失
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = api.openApi.monitoring.getStats.useQuery({
     timeRange: timeRange as "1h" | "24h" | "7d" | "30d",
   }, {
     refetchInterval: isRealTimeEnabled ? 3000 : false, // 3秒刷新
     refetchIntervalInBackground: true,
+    staleTime: 60 * 1000, // 1分钟内认为数据是新鲜的
+    gcTime: 10 * 60 * 1000, // 缓存10分钟 (新版本使用gcTime替代cacheTime)
+    refetchOnWindowFocus: false, // 窗口焦点变化时不重新获取
+    refetchOnMount: false, // 组件挂载时不重新获取（使用缓存）
   });
 
-  // 获取调用日志 - 自动刷新
+  // 获取调用日志 - 自动刷新，保持缓存避免tab切换时数据丢失
   const { data: logsData, isLoading: logsLoading, refetch: refetchLogs } = api.openApi.monitoring.getCalls.useQuery({
-    limit: 20,
-    offset: 0,
+    limit: pageSize,
+    offset: (currentPage - 1) * pageSize,
     timeRange: timeRange as "1h" | "24h" | "7d" | "30d",
   }, {
     refetchInterval: isRealTimeEnabled ? 5000 : false, // 5秒刷新
     refetchIntervalInBackground: true,
+    staleTime: 30 * 1000, // 30秒内认为数据是新鲜的
+    gcTime: 5 * 60 * 1000, // 缓存5分钟
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
+  
+  // 从响应中提取分页信息
+  const totalCalls = logsData?.total ?? 0;
+  const totalPages = Math.ceil(totalCalls / pageSize);
+  
+  // 时间范围变化时重置页码
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [timeRange]);
 
   // 手动刷新机制
   const handleManualRefresh = () => {
@@ -831,47 +863,59 @@ const ApiMonitoring = () => {
     setIsRealTimeEnabled(!isRealTimeEnabled);
   };
 
-  // 更新图表数据
+  // 初始化图表数据 - 完全使用数据库真实数据
   useEffect(() => {
-    if (stats && isRealTimeEnabled) {
-      const newDataPoint = {
-        timestamp: Date.now(),
-        totalCalls: stats.totalCalls ?? 0,
-        successfulCalls: stats.successfulCalls ?? 0,
-        failedCalls: stats.failedCalls ?? 0,
-        responseTime: stats.avgResponseTime ?? 0,
-      };
-
-      setChartData(prevData => {
-        const updatedData = [...prevData, newDataPoint];
-        // 保持最近50个数据点
-        if (updatedData.length > 50) {
-          return updatedData.slice(-50);
-        }
-        return updatedData;
-      });
+    if (stats && chartData.length === 0) {
+      // 如果有历史数据，使用历史数据
+      if (stats.callsOverTime && stats.callsOverTime.length > 0) {
+        const initialData = stats.callsOverTime.map((item) => ({
+          timestamp: new Date(item.createdAt).getTime(),
+          totalCalls: item.count,
+          successfulCalls: Math.floor(item.count * (stats.successRate / 100)), // 使用真实成功率
+          failedCalls: Math.floor(item.count * ((100 - stats.successRate) / 100)), // 使用真实失败率
+          responseTime: stats.avgResponseTime,
+        }));
+        setChartData(initialData);
+      } else {
+        // 如果没有历史数据，创建一个基于当前统计的数据点
+        const currentDataPoint = {
+          timestamp: Date.now(),
+          totalCalls: stats.totalCalls,
+          successfulCalls: stats.successfulCalls,
+          failedCalls: stats.failedCalls,
+          responseTime: stats.avgResponseTime,
+        };
+        setChartData([currentDataPoint]);
+      }
     }
-  }, [stats, isRealTimeEnabled]);
+  }, [stats, chartData.length]);
 
-  // 初始化图表数据
+  // 更新图表数据 - 只在实时模式下添加新数据点
   useEffect(() => {
-    if (chartData.length === 0) {
-      // 生成初始模拟数据
-      const initialData = [];
+    if (stats && isRealTimeEnabled && chartData.length > 0) {
+      const lastDataPoint = chartData[chartData.length - 1];
       const now = Date.now();
-      for (let i = 20; i >= 0; i--) {
-        const baseValue = 1000 + Math.random() * 500;
-        initialData.push({
-          timestamp: now - i * 10000, // 每10秒一个点
-          totalCalls: Math.floor(baseValue),
-          successfulCalls: Math.floor(baseValue * 0.85),
-          failedCalls: Math.floor(baseValue * 0.15),
-          responseTime: Math.floor(50 + Math.random() * 100),
+      
+      // 只有当距离上次更新超过2.5秒时才添加新数据点
+      if (!lastDataPoint || now - lastDataPoint.timestamp > 2500) {
+        const newDataPoint = {
+          timestamp: now,
+          totalCalls: stats.totalCalls ?? 0,
+          successfulCalls: stats.successfulCalls ?? 0,
+          failedCalls: stats.failedCalls ?? 0,
+          responseTime: stats.avgResponseTime ?? 0,
+        };
+
+        setChartData(prevData => {
+          const updatedData = [...prevData, newDataPoint];
+          // 保持最近50个数据点
+          return updatedData.length > 50 ? updatedData.slice(-50) : updatedData;
         });
       }
-      setChartData(initialData);
     }
-  }, [chartData.length]);
+  }, [stats, isRealTimeEnabled, chartData]);
+
+
 
   // 类型安全的数据转换
   const typedStats: ApiStatsResponse = stats ? {
@@ -906,47 +950,7 @@ const ApiMonitoring = () => {
       {/* 控制面板 */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">实时监控</h2>
-        <div className="flex items-center gap-4">
-          {/* 实时开关 */}
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isRealTimeEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-            <span className="text-sm text-gray-600">
-              {isRealTimeEnabled ? '实时监控' : '已暂停'}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleRealTime}
-              className="ml-2"
-            >
-              {isRealTimeEnabled ? '暂停' : '启动'}
-            </Button>
-          </div>
-          
-          {/* 手动刷新 */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleManualRefresh}
-            disabled={statsLoading || logsLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${(statsLoading || logsLoading) ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-
-          {/* 时间范围选择 */}
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1h">1小时</SelectItem>
-              <SelectItem value="24h">24小时</SelectItem>
-              <SelectItem value="7d">7天</SelectItem>
-              <SelectItem value="30d">30天</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* 按钮已删除 */}
       </div>
 
       {/* 统计卡片 */}
@@ -1038,53 +1042,116 @@ const ApiMonitoring = () => {
               <p className="text-gray-500">该时间段内没有API调用记录</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 text-left text-sm font-medium text-gray-500">
-                    <th className="pb-3">时间</th>
-                    <th className="pb-3">端点</th>
-                    <th className="pb-3">方法</th>
-                    <th className="pb-3">状态码</th>
-                    <th className="pb-3">响应时间</th>
-                    <th className="pb-3">API密钥</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {typedLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="py-3 text-sm">
-                        {new Date(log.createdAt).toLocaleString('zh-CN')}
-                      </td>
-                      <td className="py-3">
-                        <code className="text-sm bg-gray-100 px-2 py-1 rounded">
-                          {log.endpoint}
-                        </code>
-                      </td>
-                      <td className="py-3">
-                        <Badge variant="outline" className="text-xs">
-                          {log.method}
-                        </Badge>
-                      </td>
-                      <td className="py-3">
-                        <Badge variant={
-                          log.statusCode >= 200 && log.statusCode < 300 ? "default" :
-                          log.statusCode >= 400 ? "destructive" : "secondary"
-                        }>
-                          {log.statusCode}
-                        </Badge>
-                      </td>
-                      <td className="py-3 text-sm">
-                        {log.responseTime ? `${log.responseTime}ms` : "-"}
-                      </td>
-                      <td className="py-3 text-sm">
-                        {log.apiKey?.keyName ?? "未知"}
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left text-sm font-medium text-gray-500">
+                      <th className="pb-3">时间</th>
+                      <th className="pb-3">端点</th>
+                      <th className="pb-3">方法</th>
+                      <th className="pb-3">状态码</th>
+                      <th className="pb-3">响应时间</th>
+                      <th className="pb-3">API密钥</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {typedLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-gray-50">
+                        <td className="py-3 text-sm">
+                          {new Date(log.createdAt).toLocaleString('zh-CN')}
+                        </td>
+                        <td className="py-3">
+                          <code className="text-sm bg-gray-100 px-2 py-1 rounded">
+                            {log.endpoint}
+                          </code>
+                        </td>
+                        <td className="py-3">
+                          <Badge variant="outline" className="text-xs">
+                            {log.method}
+                          </Badge>
+                        </td>
+                        <td className="py-3">
+                          <Badge variant={
+                            log.statusCode >= 200 && log.statusCode < 300 ? "default" :
+                            log.statusCode >= 400 ? "destructive" : "secondary"
+                          }>
+                            {log.statusCode}
+                          </Badge>
+                        </td>
+                        <td className="py-3 text-sm">
+                          {log.responseTime ? `${log.responseTime}ms` : "-"}
+                        </td>
+                        <td className="py-3 text-sm">
+                          {log.apiKey?.keyName ?? "未知"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* 分页 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                  <div className="text-sm text-gray-600">
+                    显示第 {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCalls)} 条，
+                    共 {totalCalls} 条记录
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1 || logsLoading}
+                      className="border-gray-300"
+                    >
+                      上一页
+                    </Button>
+                    
+                    <div className="flex items-center space-x-1">
+                      {/* 显示页码按钮 */}
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            disabled={logsLoading}
+                            className={currentPage === pageNum ? "bg-gray-800 text-white" : "border-gray-300"}
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage >= totalPages || logsLoading}
+                      className="border-gray-300"
+                    >
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -1095,92 +1162,42 @@ const ApiMonitoring = () => {
 // 系统状态组件
 const SystemStatus = () => {
   const [isLiveMonitoring, setIsLiveMonitoring] = useState(true);
-  const [resourceHistory, setResourceHistory] = useState<Array<{
-    timestamp: number;
-    cpu: number;
-    memory: number;
-    disk: number;
-    network: number;
-  }>>([]);
   
-  // 获取系统状态 - 实时更新
+  // 获取系统状态 - 实时更新，保持缓存避免tab切换时数据丢失
   const { data: systemStatus, isLoading, refetch } = api.openApi.stats.getSystemStatus.useQuery(undefined, {
     refetchInterval: isLiveMonitoring ? 2000 : false, // 2秒刷新
     refetchIntervalInBackground: true,
+    staleTime: 30 * 1000, // 30秒内认为数据是新鲜的
+    gcTime: 5 * 60 * 1000, // 缓存5分钟
+    refetchOnWindowFocus: false, // 窗口焦点变化时不重新获取
+    refetchOnMount: false, // 组件挂载时不重新获取（使用缓存）
   });
 
-  // 更新资源历史数据
-  useEffect(() => {
-    if (systemStatus && isLiveMonitoring) {
-      const newDataPoint = {
-        timestamp: Date.now(),
-        cpu: Math.random() * 100, // 模拟CPU使用
-        memory: Math.random() * 80 + 10, // 模拟内存使用  
-        disk: Math.random() * 80 + 10, // 模拟磁盘使用
-        network: Math.random() * 90 + 5, // 模拟网络使用
-      };
 
-      setResourceHistory(prevData => {
-        const updatedData = [...prevData, newDataPoint];
-        // 保持最近30个数据点
-        if (updatedData.length > 30) {
-          return updatedData.slice(-30);
-        }
-        return updatedData;
-      });
-    }
-  }, [systemStatus, isLiveMonitoring]);
-
-  // 初始化资源历史数据
-  useEffect(() => {
-    if (resourceHistory.length === 0) {
-      const initialData = [];
-      const now = Date.now();
-      for (let i = 30; i >= 0; i--) {
-        initialData.push({
-          timestamp: now - i * 5000, // 每5秒一个点
-          cpu: Math.random() * 80 + 10,
-          memory: Math.random() * 70 + 15,
-          disk: Math.random() * 60 + 20,
-          network: Math.random() * 90 + 5,
-        });
-      }
-      setResourceHistory(initialData);
-    }
-  }, [resourceHistory.length]);
 
   // 类型安全的数据转换
   const typedSystemStatus: SystemStatusUI = systemStatus ?? {} as SystemStatusUI;
 
   const modules = typedSystemStatus?.modules ?? [];
 
-  // 生成模块性能数据
+  // 生成模块性能数据 - 只使用数据库数据
   const moduleData = modules.map((module) => ({
     name: module.moduleName ?? '未知模块',
-    cpuUsage: module.cpuUsage ?? Math.random() * 100,
-    memoryUsage: module.memoryUsage ?? Math.random() * 100,
-    connections: module.connections ?? Math.floor(Math.random() * 100),
+    cpuUsage: module.cpuUsage ?? 0,
+    memoryUsage: module.memoryUsage ?? 0,
+    connections: module.connections ?? 0,
     status: module.status === 'healthy' || module.status === 'warning' || module.status === 'error' 
              ? module.status 
              : 'healthy',
     timestamp: Date.now(),
   }));
 
-  // 如果没有模块数据，生成模拟数据
-  const finalModuleData = moduleData.length > 0 ? moduleData : [
-    { name: 'SDK API', cpuUsage: 37, memoryUsage: 40, connections: 158, status: 'healthy' as const, timestamp: Date.now() },
-    { name: '应用识别', cpuUsage: 63, memoryUsage: 63, connections: 91, status: 'healthy' as const, timestamp: Date.now() },
-    { name: '跨境识别', cpuUsage: 86, memoryUsage: 77, connections: 60, status: 'warning' as const, timestamp: Date.now() },
-    { name: '定制化能力', cpuUsage: 51, memoryUsage: 49, connections: 43, status: 'healthy' as const, timestamp: Date.now() },
-    { name: '周边接口', cpuUsage: 31, memoryUsage: 34, connections: 36, status: 'healthy' as const, timestamp: Date.now() },
-  ];
-
-  // 连接状态数据
-  const totalConns = 388; // 模拟总连接数
+  // 连接状态数据 - 基于数据库模块数据计算
+  const totalConns = moduleData.reduce((sum, module) => sum + module.connections, 0);
   const connectionData = {
     totalConnections: totalConns,
-    activeConnections: Math.floor(totalConns * 0.7),
-    errorConnections: Math.floor(totalConns * 0.1),
+    activeConnections: Math.floor(totalConns * 0.85), // 基于实际数据计算
+    errorConnections: Math.floor(totalConns * 0.05), // 基于实际数据计算
   };
 
   return (
@@ -1188,34 +1205,7 @@ const SystemStatus = () => {
       {/* 控制面板 */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">系统状态监控</h2>
-        <div className="flex items-center gap-4">
-          {/* 实时监控状态 */}
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isLiveMonitoring ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-            <span className="text-sm text-gray-600">
-              {isLiveMonitoring ? '实时监控' : '已暂停'}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsLiveMonitoring(!isLiveMonitoring)}
-              className="ml-2"
-            >
-              {isLiveMonitoring ? '暂停' : '启动'}
-            </Button>
-          </div>
-          
-          {/* 手动刷新 */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void refetch()}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-        </div>
+        {/* 按钮已删除 */}
       </div>
 
       {/* 系统概览 - 重新设计 */}
@@ -1230,8 +1220,15 @@ const SystemStatus = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">系统状态</p>
                 <div className="flex items-center mt-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                  <p className="text-xl font-bold text-green-600">正常运行</p>
+                  <div className={`w-2 h-2 rounded-full mr-2 ${
+                    typedSystemStatus?.overallStatus === 'healthy' ? 'bg-green-500 animate-pulse' : 
+                    typedSystemStatus?.overallStatus === 'warning' ? 'bg-yellow-500 animate-pulse' : 
+                    'bg-red-500 animate-pulse'
+                  }`}></div>
+                  <p className="text-xl font-bold text-green-600">
+                    {typedSystemStatus?.overallStatus === 'healthy' ? '正常运行' :
+                     typedSystemStatus?.overallStatus === 'warning' ? '警告' : '异常'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1247,9 +1244,20 @@ const SystemStatus = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">系统负载</p>
-                <p className="text-xl font-bold text-gray-900">42%</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {moduleData.length > 0 
+                    ? `${Math.round(moduleData.reduce((sum, m) => sum + m.cpuUsage, 0) / moduleData.length)}%`
+                    : '0%'}
+                </p>
                 <div className="w-full bg-gray-200 rounded-full h-1 mt-2">
-                  <div className="bg-blue-600 h-1 rounded-full" style={{ width: '42%' }}></div>
+                  <div 
+                    className="bg-blue-600 h-1 rounded-full" 
+                    style={{ 
+                      width: moduleData.length > 0 
+                        ? `${Math.round(moduleData.reduce((sum, m) => sum + m.cpuUsage, 0) / moduleData.length)}%`
+                        : '0%'
+                    }}
+                  ></div>
                 </div>
               </div>
             </div>
@@ -1265,8 +1273,10 @@ const SystemStatus = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">活跃连接</p>
-                <p className="text-xl font-bold text-gray-900">393</p>
-                <p className="text-xs text-purple-600 mt-1 font-medium">↑ 12% vs 昨天</p>
+                <p className="text-xl font-bold text-gray-900">{connectionData.activeConnections}</p>
+                <p className="text-xs text-purple-600 mt-1 font-medium">
+                  总计 {connectionData.totalConnections} 连接
+                </p>
               </div>
             </div>
           </CardContent>
@@ -1280,9 +1290,11 @@ const SystemStatus = () => {
                 <Package className="h-6 w-6 text-orange-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">运行时间</p>
-                <p className="text-xl font-bold text-gray-900">157天</p>
-                <p className="text-xs text-orange-600 mt-1 font-medium">稳定运行</p>
+                <p className="text-sm font-medium text-gray-600">活跃模块</p>
+                <p className="text-xl font-bold text-gray-900">{moduleData.length}</p>
+                <p className="text-xs text-orange-600 mt-1 font-medium">
+                  {moduleData.filter(m => m.status === 'healthy').length} 个正常
+                </p>
               </div>
             </div>
           </CardContent>
@@ -1291,19 +1303,23 @@ const SystemStatus = () => {
 
       {/* 熊猫科技风格监控面板 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <PandaTechRadar
-          data={finalModuleData}
-          width={450}
-          height={450}
-        />
+        <div className="flex items-center justify-center">
+          <PandaTechRadar
+            data={moduleData}
+            width={380}
+            height={380}
+          />
+        </div>
         
-        <PandaTechRing
-          totalConnections={connectionData.totalConnections}
-          activeConnections={connectionData.activeConnections}
-          errorConnections={connectionData.errorConnections}
-          width={450}
-          height={450}
-        />
+        <div className="flex items-center justify-center">
+          <PandaTechRing
+            totalConnections={connectionData.totalConnections}
+            activeConnections={connectionData.activeConnections}
+            errorConnections={connectionData.errorConnections}
+            width={380}
+            height={380}
+          />
+        </div>
       </div>
 
       {/* 模块状态详情 */}

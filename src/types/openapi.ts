@@ -124,25 +124,64 @@ export type ApiPermission = z.infer<typeof apiPermissionSchema>;
 // 预定义权限模板
 export const API_PERMISSION_TEMPLATES = {
   readonly: [
-    { category: "sdk-api", endpoints: ["versions"] },
-    { category: "app-recognition", endpoints: ["rules"] },
-    { category: "crossborder", endpoints: ["rules"] },
-    { category: "customization", endpoints: ["status"] },
-    { category: "external", endpoints: ["capability/registered", "statistics"] },
+    // 应用识别 - 只读权限
+    { category: "app-recognition", endpoints: ["app-rules-crud", "app-abnormal-stat"] },
+    // 跨境应用识别 - 只读权限  
+    { category: "crossborder", endpoints: ["crossborder-rules-crud", "crossborder-strategy-status"] },
+    // 应用管理 - 只读权限
+    { category: "app-management", endpoints: ["app-library-update-status", "app-library-query"] },
+    // 流量染色 - 只读权限
+    { category: "traffic-dyeing", endpoints: ["traffic-dyeing-rules-crud", "traffic-dyeing-trace"] },
+    // 数字水印 - 只读权限
+    { category: "watermark", endpoints: ["watermark-policy-adapt"] },
+    // 水印溯源 - 只读权限
+    { category: "watermark-trace", endpoints: ["watermark-trace-path", "watermark-change-stat"] },
+    // SDK API - 只读权限
+    { category: "sdk-api", endpoints: ["sdk-versions"] },
+    // 定制化能力 - 只读权限
+    { category: "customization", endpoints: ["customization-status"] },
+    // 周边接口 - 只读权限
+    { category: "external", endpoints: ["external-capability-registered", "external-statistics"] },
   ],
   standard: [
-    { category: "sdk-api", endpoints: ["configs", "versions", "audit/logs"] },
-    { category: "app-recognition", endpoints: ["rules", "realtime"] },
-    { category: "crossborder", endpoints: ["rules", "realtime"] },
-    { category: "customization", endpoints: ["status", "module/load"] },
-    { category: "external", endpoints: ["connection/status", "capability/registered", "statistics"] },
+    // 应用识别 - 标准权限
+    { category: "app-recognition", endpoints: ["app-rules-crud", "app-realtime-recognition", "app-abnormal-stat"] },
+    // 跨境应用识别 - 标准权限
+    { category: "crossborder", endpoints: ["crossborder-rules-crud", "crossborder-realtime", "crossborder-strategy-status"] },
+    // 应用管理 - 标准权限
+    { category: "app-management", endpoints: ["app-library-entries-crud", "app-library-update-status", "app-library-query"] },
+    // 流量染色 - 标准权限
+    { category: "traffic-dyeing", endpoints: ["traffic-dyeing-rules-crud", "traffic-dyeing-dye", "traffic-dyeing-trace"] },
+    // 数字水印 - 标准权限
+    { category: "watermark", endpoints: ["watermark-policies-crud", "watermark-embed", "watermark-policy-adapt", "watermark-extract"] },
+    // 水印溯源 - 标准权限
+    { category: "watermark-trace", endpoints: ["watermark-trace-rules-crud", "watermark-trace-path", "watermark-change-stat"] },
+    // SDK API - 标准权限
+    { category: "sdk-api", endpoints: ["sdk-configs-crud", "sdk-versions", "sdk-audit-logs"] },
+    // 定制化能力 - 标准权限
+    { category: "customization", endpoints: ["customization-status", "customization-module-load"] },
+    // 周边接口 - 标准权限
+    { category: "external", endpoints: ["external-connection-status", "external-capability-registered", "external-statistics"] },
   ],
   admin: [
-    { category: "sdk-api", endpoints: ["configs", "versions", "audit/logs", "watermark/algorithms"] },
-    { category: "app-recognition", endpoints: ["rules", "realtime", "encrypted", "ai/predict", "abnormal/stat"] },
-    { category: "crossborder", endpoints: ["rules", "realtime", "strategy/status", "proxy/identify"] },
-    { category: "customization", endpoints: ["status", "module/load", "disaster-recovery/status"] },
-    { category: "external", endpoints: ["connection/status", "capability/registered", "statistics"] },
+    // 应用识别 - 管理员权限
+    { category: "app-recognition", endpoints: ["app-rules-crud", "app-realtime-recognition", "app-encrypted-recognition", "app-ai-predict", "app-abnormal-stat"] },
+    // 跨境应用识别 - 管理员权限
+    { category: "crossborder", endpoints: ["crossborder-rules-crud", "crossborder-realtime", "crossborder-strategy-status", "crossborder-proxy-identify"] },
+    // 应用管理 - 管理员权限
+    { category: "app-management", endpoints: ["app-library-entries-crud", "app-library-update-status", "app-library-query", "app-library-auto-learn"] },
+    // 流量染色 - 管理员权限
+    { category: "traffic-dyeing", endpoints: ["traffic-dyeing-rules-crud", "traffic-dyeing-dye", "traffic-dyeing-trace", "traffic-dyeing-report"] },
+    // 数字水印 - 管理员权限
+    { category: "watermark", endpoints: ["watermark-policies-crud", "watermark-embed", "watermark-policy-adapt", "watermark-extract"] },
+    // 水印溯源 - 管理员权限
+    { category: "watermark-trace", endpoints: ["watermark-trace-rules-crud", "watermark-trace-path", "watermark-compliance-report", "watermark-change-stat"] },
+    // SDK API - 管理员权限
+    { category: "sdk-api", endpoints: ["sdk-configs-crud", "sdk-versions", "sdk-audit-logs", "sdk-watermark-algorithms"] },
+    // 定制化能力 - 管理员权限
+    { category: "customization", endpoints: ["customization-status", "customization-module-load", "customization-disaster-recovery"] },
+    // 周边接口 - 管理员权限
+    { category: "external", endpoints: ["external-connection-status", "external-capability-registered", "external-statistics"] },
   ],
 } as const;
 

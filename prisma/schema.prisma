@@ -60,6 +60,7 @@ model User {
   trafficDyeingRules  TrafficDyeingRule[]
   watermarkPolicies   WatermarkPolicy[]
   watermarkRecords    WatermarkRecord[]
+  watermarkContents   WatermarkContent[]
   apiKeys             ApiKey[]
   passwordResets      UserPasswordReset[]
   loginLogs           UserLoginLog[]
@@ -389,31 +390,60 @@ model WatermarkPolicy {
   @@index([createdById])
 }
 
-model WatermarkRecord {
-  id            String           @id @default(cuid())
-  fileName      String
-  fileSize      Int
-  fileHash      String?
-  fileUrl       String
-  operation     String
-  policyId      String?
-  watermarkText String?
-  taskId        String?
-  status        String           @default("pending")
-  progress      Int              @default(0)
-  result        String?
-  metadata      String?
-  errorMessage  String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  createdById   String
+// 水印内容表 - 存储水印ID与内容的映射关系
+model WatermarkContent {
+  id               String   @id @default(cuid())
+  watermarkId      String   @unique // 嵌入到文件中的唯一标识
+  content          String   // 实际的水印文本内容
+  bizId            String?  // 业务ID
+  embedTaskId      String?  // 嵌入任务ID
+  originalFileHash String?  // 原始文件hash
+  watermarkFileHash String? // 带水印文件hash
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdById      String
   
-  policy    WatermarkPolicy? @relation(fields: [policyId], references: [id])
-  createdBy User             @relation(fields: [createdById], references: [id])
+  createdBy User              @relation(fields: [createdById], references: [id])
+  records   WatermarkRecord[]
+
+  @@map("watermark_contents")
+  @@index([watermarkId])
+  @@index([originalFileHash])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model WatermarkRecord {
+  id                String           @id @default(cuid())
+  fileName          String
+  fileSize          Int
+  fileHash          String?          // 文件hash
+  fileUrl           String           // 文件URL
+  operation         String           // embed 或 extract
+  policyId          String?
+  watermarkText     String?          // 用户输入的原始文本
+  watermarkId       String?          // 关联的水印ID
+  taskId            String?          // 任务ID
+  status            String           @default("pending") // pending, processing, completed, failed
+  progress          Int              @default(0)
+  result            String?          // 处理结果
+  processedFileUrl  String?          // 处理后文件URL
+  originalFileHash  String?          // 原始文件hash
+  processedFileHash String?          // 处理后文件hash
+  metadata          String?          // 额外元数据
+  errorMessage      String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  createdById       String
+  
+  policy          WatermarkPolicy?  @relation(fields: [policyId], references: [id])
+  watermarkContent WatermarkContent? @relation(fields: [watermarkId], references: [watermarkId])
+  createdBy       User              @relation(fields: [createdById], references: [id])
 
   @@map("watermark_records")
   @@index([status])
   @@index([operation])
+  @@index([watermarkId])
   @@index([createdById])
   @@index([createdAt])
 }

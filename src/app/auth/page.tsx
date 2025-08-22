@@ -16,6 +16,7 @@ import {
   ArrowRight, 
   Sparkles 
 } from "lucide-react";
+import { VerificationCodeDebug } from "~/components/debug/VerificationCodeDebug";
 
 export default function AuthPage() {
   const [currentView, setCurrentView] = useState<"login" | "reset" | "newPassword">("login");
@@ -31,6 +32,11 @@ export default function AuthPage() {
   const [generatedCode, setGeneratedCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [stars, setStars] = useState<Array<{left: number, top: number, delay: number, duration: number}>>([]);
+  const [debugInfo, setDebugInfo] = useState<{
+    email?: string;
+    generatedAt?: string;
+    expiresIn?: string;
+  } | null>(null);
 
   const router = useRouter();
 
@@ -83,6 +89,12 @@ export default function AuthPage() {
           // 开发环境下自动填入验证码
           if (result.debugCode) {
             setGeneratedCode(result.debugCode);
+            setDebugInfo(result.debugInfo || null);
+            
+            // 前端控制台也输出验证码用于调试
+            console.log("🔑 验证码已生成:", result.debugCode);
+            console.log("📋 调试信息:", result.debugInfo);
+            console.log(`✅ 验证码: ${result.debugCode} (已自动填入)`);
           }
           setCurrentView("newPassword");
           setError(""); // 清除错误
@@ -301,9 +313,12 @@ export default function AuthPage() {
                           <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input
                             type="text"
-                            placeholder={generatedCode ? `验证码: ${generatedCode}` : "请输入验证码"}
+                            placeholder={"请输入验证码"}
                             value={formData.verificationCode}
-                            onChange={(e) => setFormData({ ...formData, verificationCode: e.target.value })}
+                            onChange={(e) => {
+                              setFormData({ ...formData, verificationCode: e.target.value });
+                             console.log(generatedCode);
+                            }}
                             className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-white/40"
                             required
                           />
@@ -318,7 +333,10 @@ export default function AuthPage() {
                             type="password"
                             placeholder="请输入新密码（至少6个字符）"
                             value={formData.newPassword}
-                            onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
+                            onChange={(e) => {
+                              setFormData({ ...formData, newPassword: e.target.value });
+    
+                            }}
                             className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-white/40"
                             required
                           />
@@ -397,7 +415,7 @@ export default function AuthPage() {
               </CardContent>
             </Card>
 
-            {/* 测试账户信息 */}
+            {/* 测试账户信息
             {currentView === "login" && (
               <Card className="mt-6 backdrop-blur-md bg-blue-500/10 border-blue-500/20">
                 <CardContent className="p-4">
@@ -417,10 +435,10 @@ export default function AuthPage() {
                   </div>
                 </CardContent>
               </Card>
-            )}
+            )} */}
 
             {/* 验证码提示 */}
-            {currentView === "newPassword" && generatedCode && (
+            {/* {currentView === "newPassword" && generatedCode && (
               <Card className="mt-6 backdrop-blur-md bg-green-500/10 border-green-500/20">
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-green-300 mb-3 flex items-center gap-2">
@@ -433,7 +451,7 @@ export default function AuthPage() {
                   </div>
                 </CardContent>
               </Card>
-            )}
+            )} */}
           </div>
         </div>
       </div>

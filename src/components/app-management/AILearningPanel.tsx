@@ -17,7 +17,7 @@ import {
   Loader2
 } from "lucide-react";
 import { cn } from "~/lib/utils";
-import { api } from "~/utils/api";
+import { api } from "~/trpc/react";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 
@@ -42,6 +42,10 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [processingIds, setProcessingIds] = useState<string[]>([]);
+  
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5; // 每页显示5个建议
 
   // 获取AI建议数据
   const { 
@@ -128,9 +132,13 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedSuggestions(suggestions.map(s => s.id));
+      // 只选择当前页的建议
+      const currentPageIds = currentPageSuggestions.map(s => s.id);
+      setSelectedSuggestions(prev => [...new Set([...prev, ...currentPageIds])]);
     } else {
-      setSelectedSuggestions([]);
+      // 取消选择当前页的建议
+      const currentPageIds = currentPageSuggestions.map(s => s.id);
+      setSelectedSuggestions(prev => prev.filter(id => !currentPageIds.includes(id)));
     }
   };
 
@@ -157,8 +165,15 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
   };
 
   const pendingSuggestions = suggestions.filter(s => s.status === "pending");
+  
+  // 分页逻辑
+  const totalPages = Math.ceil(pendingSuggestions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPageSuggestions = pendingSuggestions.slice(startIndex, endIndex);
+  
   const hasSelected = selectedSuggestions.length > 0;
-  const isAllSelected = selectedSuggestions.length === pendingSuggestions.length && pendingSuggestions.length > 0;
+  const isAllSelected = selectedSuggestions.length === currentPageSuggestions.length && currentPageSuggestions.length > 0;
 
   return (
     <Card className="w-full">
@@ -170,6 +185,11 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
             {pendingSuggestions.length > 0 && (
               <Badge variant="secondary" className="ml-2">
                 {pendingSuggestions.length}
+              </Badge>
+            )}
+            {totalPages > 1 && (
+              <Badge variant="outline" className="ml-2">
+                第{currentPage}/{totalPages}页
               </Badge>
             )}
           </CardTitle>
@@ -236,7 +256,7 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
           ) : (
             <>
               {/* 批量操作栏 */}
-              {pendingSuggestions.length > 1 && (
+              {currentPageSuggestions.length > 1 && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <Checkbox
@@ -244,15 +264,20 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
                       onCheckedChange={handleSelectAll}
                     />
                     <span className="text-sm text-gray-600">
-                      全选 ({pendingSuggestions.length} 项建议)
+                      全选当前页 ({currentPageSuggestions.length} 项建议)
                     </span>
                   </div>
+                  {totalPages > 1 && (
+                    <span className="text-xs text-gray-500">
+                      显示 {startIndex + 1}-{Math.min(endIndex, pendingSuggestions.length)} / {pendingSuggestions.length}
+                    </span>
+                  )}
                 </div>
               )}
 
               {/* 建议列表 */}
               <div className="space-y-4">
-                {pendingSuggestions.map((suggestion) => {
+                {currentPageSuggestions.map((suggestion) => {
                   const isSelected = selectedSuggestions.includes(suggestion.id);
                   const isProcessing = processingIds.includes(suggestion.id);
 
@@ -265,7 +290,7 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
                       )}
                     >
                       <div className="flex items-start space-x-3">
-                        {pendingSuggestions.length > 1 && (
+                        {currentPageSuggestions.length > 1 && (
                           <Checkbox
                             checked={isSelected}
                             onCheckedChange={(checked) => 
@@ -369,6 +394,58 @@ export function AILearningPanel({ currentTab = 'custom' }: AILearningPanelProps 
                   );
                 })}
               </div>
+              
+              {/* 分页控件 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center space-x-2 mt-6 pt-4 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="border-gray-300"
+                  >
+                    上一页
+                  </Button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={currentPage === pageNum ? "bg-purple-600 text-white" : "border-gray-300"}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="border-gray-300"
+                  >
+                    下一页
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </CardContent>

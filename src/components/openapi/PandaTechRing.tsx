@@ -204,7 +204,7 @@ export const PandaTechRing: React.FC<PandaTechRingProps> = ({
 
     indicators.forEach((indicator) => {
       // 指示器圆点
-      const indicatorRadius = radius + 40;
+      const indicatorRadius = radius + 35;
       const indicatorX = centerX + Math.cos(indicator.angle) * indicatorRadius;
       const indicatorY = centerY + Math.sin(indicator.angle) * indicatorRadius;
       
@@ -224,22 +224,22 @@ export const PandaTechRing: React.FC<PandaTechRingProps> = ({
       ctx.fill();
       
       // 标签文字
-      const labelRadius = radius + 65;
+      const labelRadius = radius + 55;
       const labelX = centerX + Math.cos(indicator.angle) * labelRadius;
       const labelY = centerY + Math.sin(indicator.angle) * labelRadius;
       
       ctx.fillStyle = "rgba(241, 245, 249, 0.9)";
-      ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+      ctx.font = "bold 12px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(indicator.label, labelX, labelY - 8);
+      ctx.fillText(indicator.label, labelX, labelY - 6);
       
       ctx.fillStyle = indicator.color;
-      ctx.font = "12px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
-      ctx.fillText(`${indicator.value}`, labelX, labelY + 6);
+      ctx.font = "11px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+      ctx.fillText(`${indicator.value}`, labelX, labelY + 5);
       
       ctx.fillStyle = "rgba(203, 213, 225, 0.8)";
-      ctx.font = "11px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
-      ctx.fillText(`${indicator.percent.toFixed(1)}%`, labelX, labelY + 18);
+      ctx.font = "10px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+      ctx.fillText(`${indicator.percent.toFixed(1)}%`, labelX, labelY + 16);
     });
 
     // 中心装饰

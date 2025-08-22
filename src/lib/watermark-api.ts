@@ -58,8 +58,8 @@ export class WatermarkAPIService {
         },
         body: JSON.stringify({
           fileUrl,
-          watermarkText: content,
-          bizId: bizId ?? `embed_${Date.now()}`
+          content,
+          policyId: bizId // 将bizId作为policyId传递
         }),
       });
 
@@ -177,17 +177,10 @@ export class WatermarkAPIService {
         confidence?: number;
       } = {};
 
-      if (result.result?.data) {
-        if (result.status === 'finished') {
-          // 如果是嵌入任务，result.data是下载URL
-          // 如果是提取任务，result.data是提取的内容
-          if (result.result.data.startsWith('http')) {
-            processedResult.downloadUrl = result.result.data;
-          } else {
-            processedResult.extractedContent = result.result.data;
-            processedResult.confidence = 0.95; // 默认置信度
-          }
-        }
+      if (result.result) {
+        processedResult.downloadUrl = result.result.downloadUrl;
+        processedResult.extractedContent = result.result.extractedContent;
+        processedResult.confidence = result.result.confidence;
       }
 
       return {

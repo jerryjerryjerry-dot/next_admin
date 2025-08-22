@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Button } from "~/components/ui/button";
-import { CreateButton, ImportExportButtons } from "~/components/ui/operation-buttons";
+import { CreateButton } from "~/components/ui/operation-buttons";
 import { CategoryTree } from "./CategoryTree";
 import { SearchPanel } from "./SearchPanel";
 import { AppTable } from "./AppTable";
@@ -17,9 +17,7 @@ import { api } from "~/utils/api";
 import type { AppEntry, SearchParams} from "~/types/api-response";
 import type { AppFormData } from "~/types/app-management/base";
 import { safeConvertToAppEntry } from "~/utils/data-converters";
-import { 
-  RefreshCw
-} from "lucide-react";
+
 
 type TabType = "builtin" | "custom";
 
@@ -35,38 +33,52 @@ export function AppManagementPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [searchParams, setSearchParams] = useState<SearchParams | null>(null);
+
+  
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [searchKeyword, setSearchKeyword] = useState("");
 
   // API查询
   const { 
-    data: apps = [], 
+    data: appsResponse, 
     isLoading: appsLoading, 
     refetch: refetchApps 
   } = api.appManagement.apps.getAll.useQuery({
     categoryId: selectedCategoryId === "all" ? undefined : selectedCategoryId,
     isBuiltIn: activeTab === "builtin" ? true : false,
+    page: currentPage,
+    pageSize: pageSize,
+    search: searchKeyword.trim() || undefined,
   });
+
+  // 从响应中提取数据
+  const apps = appsResponse?.data ?? [];
+  const totalPages = appsResponse?.totalPages ?? 0;
+  const total = appsResponse?.total ?? 0;
 
   // 添加调试信息
   useEffect(() => {
-    if (apps) {
+    if (appsResponse) {
       console.log('API返回数据:', {
         categoryId: selectedCategoryId,
         isBuiltIn: activeTab === "builtin" ? true : false,
+        page: currentPage,
         dataCount: apps?.length || 0,
+        total: total,
+        totalPages: totalPages,
         data: apps?.slice(0, 3) // 只显示前3条用于调试
       });
     }
-  }, [apps, selectedCategoryId, activeTab]);
+  }, [appsResponse, selectedCategoryId, activeTab, currentPage, apps, total, totalPages]);
 
-  // 搜索查询
-  const { 
-    data: searchResults = [], 
-    isLoading: searchLoading,
-  } = api.appManagement.apps.search.useQuery(
-    searchParams!,
-    { enabled: !!searchParams }
-  );
+  // 当搜索、分类、标签页变化时重置页码
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategoryId, activeTab, searchKeyword]);
+
+  // 移除旧的搜索查询逻辑，现在搜索集成到主查询中
 
   // API变更操作
   const createAppMutation = api.appManagement.apps.create.useMutation({
@@ -174,9 +186,6 @@ export function AppManagementPage() {
   });
 
   // 事件处理函数
-  const handleRefresh = () => {
-    void refetchApps();
-  };
 
   const handleCreateApp = () => {
     setEditingApp(null);
@@ -263,20 +272,17 @@ export function AppManagementPage() {
   };
 
   const handleSearch = (params: SearchParams) => {
-    setSearchParams(params);
+    // 使用新的搜索逻辑
+    setSearchKeyword(params.queryValue ?? "");
+    setCurrentPage(1); // 搜索时重置到第一页
   };
 
   const handleClearSearch = () => {
-    setSearchParams(null);
+    setSearchKeyword("");
+    setCurrentPage(1);
   };
 
-  const handleImport = () => {
-    setIsImportDialogOpen(true);
-  };
 
-  const handleExport = () => {
-    setIsExportDialogOpen(true);
-  };
 
   const handleImportFile = (file: File) => {
     const reader = new FileReader();
@@ -406,90 +412,161 @@ export function AppManagementPage() {
   };
 
   // 显示的应用数据
-  const displayApps = searchParams ? searchResults : apps;
-  const isLoading = searchParams ? searchLoading : appsLoading;
+  const displayApps = apps;
+  const isLoading = appsLoading;
 
   return (
-    <div className="space-y-6">
-      {/* 操作按钮栏 */}
-      <div className="flex items-center justify-end space-x-3">
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          className="flex items-center border-gray-300 text-gray-700 hover:bg-gray-100"
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          刷新
-        </Button>
-        
-        <ImportExportButtons
-          onImport={handleImport}
-          onExport={handleExport}
-          loading={isLoading}
-        />
-        
-        <CreateButton
-          onClick={handleCreateApp}
-          loading={createAppMutation.isPending}
-        />
-      </div>
-
-      {/* 主要内容区域 */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* 左侧分类树 */}
-        <div className="col-span-3">
-          <CategoryTree
-            selectedCategoryId={selectedCategoryId}
-            onCategorySelect={setSelectedCategoryId}
-          />
+    <div className="min-h-screen bg-gray-50/50">
+      <div className="w-full px-6 py-6 space-y-8">
+        {/* 页面标题和操作栏 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">应用管理</h1>
+            <p className="text-sm text-gray-600 mt-1">管理内置应用和自定义应用配置</p>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <CreateButton
+              onClick={handleCreateApp}
+              loading={createAppMutation.isPending}
+            />
+          </div>
         </div>
 
-        {/* 右侧主要内容 */}
-        <div className="col-span-9 space-y-6">
-          {/* 搜索面板 */}
-          <SearchPanel
-            onSearch={handleSearch}
-            onClear={handleClearSearch}
-            loading={searchLoading}
-          />
+        {/* 主要内容区域 */}
+        <div className="grid grid-cols-12 gap-6">
+          {/* 左侧分类树 */}
+          <div className="col-span-12 lg:col-span-2">
+            <div className="sticky top-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <CategoryTree
+                  selectedCategoryId={selectedCategoryId}
+                  onCategorySelect={setSelectedCategoryId}
+                />
+              </div>
+            </div>
+          </div>
 
-          {/* AI建议面板 - 优化显示逻辑 */}
-          <AILearningPanel currentTab={activeTab} />
+          {/* 右侧主要内容 */}
+          <div className="col-span-12 lg:col-span-10 space-y-6">
+            {/* 搜索面板 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <SearchPanel
+                onSearch={handleSearch}
+                onClear={handleClearSearch}
+                loading={isLoading}
+              />
+            </div>
 
-          {/* 应用列表标签页 */}
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabType)}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="builtin">内置应用</TabsTrigger>
-              <TabsTrigger value="custom">自定义应用</TabsTrigger>
-            </TabsList>
+            {/* AI建议面板 */}
+            <AILearningPanel currentTab={activeTab} />
+
+            {/* 应用列表区域 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="p-6">
+                {/* 标签页导航 */}
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabType)}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                    <TabsList className="grid w-full sm:w-64 grid-cols-2">
+                      <TabsTrigger value="builtin" className="text-sm">内置应用</TabsTrigger>
+                      <TabsTrigger value="custom" className="text-sm">自定义应用</TabsTrigger>
+                    </TabsList>
+                    
+                    {/* 统计信息 */}
+                    <div className="text-sm text-gray-500 text-center sm:text-right">
+                      共 {total} 个应用
+                    </div>
+                  </div>
             
-            <TabsContent value="builtin" className="space-y-4">
-              <AppTable
-                apps={displayApps}
-                loading={isLoading}
-                onEdit={handleEditApp}
-                onDelete={handleDeleteApp}
-                onBatchDelete={handleBatchDelete}
-                onBatchExport={handleBatchExport}
-                onView={handleViewApp}
-              />
-            </TabsContent>
-            
-            <TabsContent value="custom" className="space-y-4">
-              <AppTable
-                apps={displayApps}
-                loading={isLoading}
-                onEdit={handleEditApp}
-                onDelete={handleDeleteApp}
-                onBatchDelete={handleBatchDelete}
-                onBatchExport={handleBatchExport}
-                onView={handleViewApp}
-              />
-            </TabsContent>
-          </Tabs>
+                  {/* 表格内容 */}
+                  <TabsContent value="builtin" className="mt-0">
+                    <AppTable
+                      apps={displayApps}
+                      loading={isLoading}
+                      onEdit={handleEditApp}
+                      onDelete={handleDeleteApp}
+                      onBatchDelete={handleBatchDelete}
+                      onBatchExport={handleBatchExport}
+                      onView={handleViewApp}
+                    />
+                  </TabsContent>
+                  
+                  <TabsContent value="custom" className="mt-0">
+                    <AppTable
+                      apps={displayApps}
+                      loading={isLoading}
+                      onEdit={handleEditApp}
+                      onDelete={handleDeleteApp}
+                      onBatchDelete={handleBatchDelete}
+                      onBatchExport={handleBatchExport}
+                      onView={handleViewApp}
+                    />
+                  </TabsContent>
+                </Tabs>
+
+                {/* 分页区域 */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between pt-6 mt-6 border-t border-gray-200">
+                    <div className="text-sm text-gray-600">
+                      第 {currentPage} 页，共 {totalPages} 页 | 总计 {total} 条记录
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1 || isLoading}
+                        className="border-gray-300"
+                      >
+                        上一页
+                      </Button>
+                      
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              disabled={isLoading}
+                              className={currentPage === pageNum ? "bg-blue-600 text-white" : "border-gray-300"}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages || isLoading}
+                        className="border-gray-300"
+                      >
+                        下一页
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
         </div>
       </div>
+    </div>
 
       {/* 模态框 */}
       <AppFormModal

@@ -3,6 +3,7 @@ import { Shield, Search, Download, AlertCircle, CheckCircle, Clock, Activity } f
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { Label } from "~/components/ui/label";
+import { Input } from "~/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
 import { Progress } from "~/components/ui/progress";
@@ -38,7 +39,8 @@ export function WatermarkProcess() {
   const { toast } = useToast();
   const [operation, setOperation] = useState<OperationType>("embed");
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-  const [selectedPolicy, setSelectedPolicy] = useState<string>("");
+  const [extractFileUrl, setExtractFileUrl] = useState("");
+
   const [watermarkText, setWatermarkText] = useState("");
   const [processingTask, setProcessingTask] = useState<ProcessingTask | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -57,41 +59,7 @@ export function WatermarkProcess() {
   const startTimeRef = useRef<number>(0);
   const pollCountRef = useRef<number>(0);
 
-  // 策略列表状态
-  const [policies, setPolicies] = useState<Array<{
-    id: string;
-    name: string;
-    description: string;
-    watermarkText: string;
-    sensitivity?: string;
-  }>>([]);
 
-  // 获取策略列表
-  useEffect(() => {
-    const fetchPolicies = async () => {
-      try {
-        const response = await fetch('/api/watermark/policies?active=true');
-        const result = await response.json() as {
-          success: boolean;
-          data: Array<{
-            id: string;
-            name: string;
-            description: string;
-            watermarkText: string;
-            sensitivity?: string;
-          }>;
-        };
-        
-        if (result.success) {
-          setPolicies(result.data);
-        }
-      } catch (error) {
-        console.error('获取策略列表失败:', error);
-      }
-    };
-
-    void fetchPolicies();
-  }, []);
 
   // 组件卸载时清理定时器，防止内存泄漏
   useEffect(() => {
@@ -127,25 +95,31 @@ export function WatermarkProcess() {
 
   // 开始处理水印
   const handleProcess = async () => {
-    if (!uploadedFile) {
-      toast({
-        title: "请先上传文件",
-        variant: "warning",
-      });
-      return;
-    }
-
+    // 嵌入水印验证
     if (operation === "embed") {
-      if (!selectedPolicy) {
+      if (!uploadedFile) {
         toast({
-          title: "请选择水印策略",
+          title: "请先上传文件",
           variant: "warning",
         });
         return;
       }
+      
       if (!watermarkText.trim()) {
         toast({
           title: "请输入水印文本",
+          description: "水印文本不能为空",
+          variant: "warning",
+        });
+        return;
+      }
+    }
+    
+    // 提取水印验证
+    if (operation === "extract") {
+      if (!extractFileUrl.trim()) {
+        toast({
+          title: "请输入文件URL",
           variant: "warning",
         });
         return;
@@ -158,13 +132,22 @@ export function WatermarkProcess() {
       let result;
       
       if (operation === "embed") {
+        console.log('🚀 开始水印嵌入:', {
+          fileUrl: uploadedFile!.fileUrl,
+          watermarkText: watermarkText.trim()
+        });
+        
         result = await watermarkAPI.embedWatermark(
-          uploadedFile.fileUrl,
+          uploadedFile!.fileUrl,
           watermarkText.trim()
         );
       } else {
+        console.log('🔍 开始水印提取:', {
+          fileUrl: extractFileUrl
+        });
+        
         result = await watermarkAPI.extractWatermark(
-          uploadedFile.fileUrl
+          extractFileUrl
         );
       }
 
@@ -264,16 +247,16 @@ export function WatermarkProcess() {
             ...prev,
             progress: progress,
             estimatedTime: estimatedTime,
-            status: taskStatus === 'finished' ? 'completed' : 
+            status: taskStatus === 'completed' ? 'completed' : 
                    taskStatus === 'failed' ? 'failed' : 'processing',
           } : null);
 
-          // 修改停止条件：必须是finished且有result，或者是failed
-          if ((taskStatus === "finished" && hasResult) || taskStatus === "failed") {
+          // 修改停止条件：completed或failed都应该停止轮询
+          if (taskStatus === "completed" || taskStatus === "failed") {
             clearTimers();
             setIsProcessing(false);
             
-            if (taskStatus === "finished") {
+                        if (taskStatus === "completed") {
               // 处理成功结果
               const result = statusResult.data.result;
               setProcessingTask(prev => prev ? {
@@ -286,11 +269,10 @@ export function WatermarkProcess() {
                   confidence: result?.confidence,
                 },
               } : null);
-              
+
               toast({
                 title: operation === 'embed' ? "水印嵌入成功！" : "水印提取成功！",
                 description: operation === 'embed' ? "文件已成功添加水印" : "已成功提取水印内容",
-                variant: "success",
               });
             } else {
               // 处理失败结果
@@ -331,44 +313,70 @@ export function WatermarkProcess() {
       })();
     }, 2000); // 每2秒查询一次
 
-    // 5分钟后停止轮询
+    // 2分钟后停止轮询
     timeoutRef.current = setTimeout(() => {
       clearTimers();
       setIsProcessing(false);
       
       toast({
         title: "处理超时",
-        description: "任务处理时间过长，请稍后手动查看结果",
+        description: "任务处理时间过长，请检查任务状态",
         variant: "warning",
       });
-    }, 5 * 60 * 1000);
+      
+      // 设置任务状态为超时
+      setProcessingTask(prev => prev ? {
+        ...prev,
+        status: "failed",
+        error: "处理超时"
+      } : null);
+    }, 2 * 60 * 1000); // 2分钟超时
   };
 
   // 重置表单
   const handleReset = () => {
     clearTimers(); // 清理定时器
     setUploadedFile(null);
-    setSelectedPolicy("");
+    setExtractFileUrl("");
     setWatermarkText("");
     setProcessingTask(null);
     setIsProcessing(false);
     setPollingLogs([]);
   };
 
-  // 使用测试PDF URL
-  const handleTestWithPdfUrl = () => {
-    const testPdfUrl = "https://dxysbackend4.vercel.app/files/1755694993903_e6fe9f8a6d46da91e4dc4d959493b9b4.pdf";
-    setUploadedFile({
-      fileUrl: testPdfUrl,
-      fileName: "test-document.pdf",
-      fileSize: 1024000
-    });
-    setWatermarkText("测试水印文本");
-    toast({
-      title: "测试URL已设置",
-      description: "使用Vercel上的测试PDF文件",
-      variant: "success"
-    });
+  // 使用测试PDF URL - 先创建一个测试文件
+  const handleTestWithPdfUrl = async () => {
+    try {
+      // 创建一个测试文本文件
+      const testContent = "这是一个测试文档内容，用于演示水印功能。\n\n水印系统可以在文档中嵌入不可见的标识信息，并且可以从处理后的文档中提取这些信息。\n\n测试时间：" + new Date().toLocaleString();
+      const testFile = new File([testContent], "test-document.txt", {
+        type: "text/plain"
+      });
+
+      // 上传测试文件
+      const uploadResult = await watermarkAPI.uploadFile(testFile);
+      
+      setUploadedFile({
+        fileUrl: uploadResult.fileUrl,
+        fileName: uploadResult.fileName,
+        fileSize: uploadResult.fileSize
+      });
+      
+      setWatermarkText("我的测试水印内容");
+      
+      toast({
+        title: "测试文件已创建",
+        description: `文件已上传: ${uploadResult.fileName}`,
+        variant: "success"
+      });
+    } catch (error) {
+      console.error("创建测试文件失败:", error);
+      toast({
+        title: "创建测试文件失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        variant: "destructive"
+      });
+    }
   };
 
   // 渲染状态图标
@@ -401,11 +409,11 @@ export function WatermarkProcess() {
         {/* 左侧操作面板 */}
         <div className="lg:col-span-2 space-y-6">
           {/* 测试区域 */}
-          <Card className="p-4 border-dashed border-blue-300 bg-blue-50">
+          {/* <Card className="p-4 border-dashed border-blue-300 bg-blue-50">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium text-blue-900">快速测试</h3>
-                <p className="text-xs text-blue-700">使用预设的PDF文件进行测试</p>
+                <p className="text-xs text-blue-700">创建测试文件并自动设置水印内容</p>
               </div>
               <Button
                 variant="outline"
@@ -414,10 +422,10 @@ export function WatermarkProcess() {
                 disabled={isProcessing}
                 className="border-blue-300 text-blue-700 hover:bg-blue-100"
               >
-                使用测试PDF
+                创建测试文件
               </Button>
             </div>
-          </Card>
+          </Card> */}
 
           {/* 操作类型选择 */}
           <Card className="p-6">
@@ -446,63 +454,175 @@ export function WatermarkProcess() {
             </div>
           </Card>
 
-          {/* 文件上传 */}
-          <Card className="p-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">上传文件</h3>
-              <FileUpload
-                onFileSelect={handleFileSelect}
-                onFileUpload={handleFileUpload}
-                className="w-full"
-              />
-              {uploadedFile && (
-                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-start space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div className="flex-1 space-y-2">
-                      <div>
-                        <h4 className="text-sm font-medium text-green-800">文件上传成功</h4>
-                        <p className="text-sm text-green-700">文件已准备好进行水印处理</p>
-                      </div>
-                      
-                      <div className="space-y-1 text-xs text-green-600">
-                        <div className="flex justify-between">
-                          <span>文件名:</span>
-                          <span className="font-mono">{uploadedFile.fileName}</span>
+          {/* 嵌入水印：文件上传 */}
+          {operation === "embed" && (
+            <Card className="p-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">上传文件</h3>
+                <FileUpload
+                  onFileSelect={handleFileSelect}
+                  onFileUpload={handleFileUpload}
+                  className="w-full"
+                />
+                {uploadedFile && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <h4 className="text-sm font-medium text-green-800">文件上传成功</h4>
+                          <p className="text-sm text-green-700">文件已准备好进行水印处理</p>
                         </div>
-                        <div className="flex justify-between">
-                          <span>文件大小:</span>
-                          <span>{(uploadedFile.fileSize / 1024 / 1024).toFixed(2)} MB</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span>文件URL:</span>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-mono text-xs max-w-[200px] truncate">
-                              {uploadedFile.fileUrl}
-                            </span>
-                            <a 
-                              href={uploadedFile.fileUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 underline text-xs"
-                            >
-                              预览
-                            </a>
+                        
+                        <div className="space-y-1 text-xs text-green-600">
+                          <div className="flex justify-between">
+                            <span>文件名:</span>
+                            <span className="font-mono">{uploadedFile.fileName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>文件大小:</span>
+                            <span>{(uploadedFile.fileSize / 1024 / 1024).toFixed(2)} MB</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>文件URL:</span>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-xs max-w-[200px] truncate">
+                                {uploadedFile.fileUrl}
+                              </span>
+                              <a 
+                                href={uploadedFile.fileUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline text-xs"
+                              >
+                                预览
+                              </a>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      <div className="pt-2 border-t border-green-200">
-                        <p className="text-xs text-green-600">
-                          💡 水印服务将使用此URL处理您的文件
-                        </p>
+                        
+                        <div className="pt-2 border-t border-green-200">
+                          <p className="text-xs text-green-600">
+                              水印服务将使用此URL处理您的文件
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* 提取水印：输入文件URL */}
+          {operation === "extract" && (
+            <Card className="p-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">输入文件URL</h3>
+                <div>
+      
+                  <div className="flex space-x-2 mt-1">
+                    <Input
+                      id="extract-file-url"
+                      type="url"
+                      // placeholder="请输入带水印文件的完整URL，如：http://localhost:3000/uploads/watermark/processed/file_watermarked_12345678.txt"
+                      value={extractFileUrl}
+                      onChange={(e) => setExtractFileUrl(e.target.value)}
+                      disabled={isProcessing}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          let text = '';
+                          
+                          // 优先使用 navigator.clipboard，降级到传统方法
+                          if (navigator.clipboard && window.isSecureContext) {
+                            text = await navigator.clipboard.readText();
+                          } else {
+                            // 降级方案：提示用户手动粘贴
+                            toast({
+                              title: "请手动粘贴",
+                              description: "请使用 Ctrl+V 手动粘贴URL到输入框",
+                              variant: "default"
+                            });
+                            return;
+                          }
+                          
+                          if (text && text.trim().startsWith('http')) {
+                            setExtractFileUrl(text.trim());
+                            toast({
+                              title: "已粘贴",
+                              description: "URL已从剪贴板粘贴",
+                            });
+                          } else {
+                            toast({
+                              title: "粘贴失败",
+                              description: "剪贴板中没有有效的URL",
+                              variant: "destructive"
+                            });
+                          }
+                        } catch (error) {
+                          console.error('粘贴失败:', error);
+                          toast({
+                            title: "粘贴失败",
+                            description: "无法访问剪贴板，请手动输入URL",
+                            variant: "destructive"
+                          });
+                        }
+                      }}
+                      disabled={isProcessing}
+                      className="px-3"
+                    >
+                      粘贴
+                    </Button>
+                  </div>
+            
                 </div>
-              )}
-            </div>
-          </Card>
+                
+                {extractFileUrl && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <Search className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-800">文件URL已设置</h4>
+                          <p className="text-sm text-blue-700">准备提取水印内容</p>
+                        </div>
+                        
+                        <div className="space-y-1 text-xs text-blue-600">
+                          <div className="flex justify-between items-center">
+                            <span>目标URL:</span>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-xs max-w-[200px] truncate">
+                                {extractFileUrl}
+                              </span>
+                              <a 
+                                href={extractFileUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline text-xs"
+                              >
+                                预览
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="pt-2 border-t border-blue-200">
+                          <p className="text-xs text-blue-600">
+                             系统将从此文件中提取原始水印内容
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* 嵌入水印配置 */}
           {operation === "embed" && uploadedFile && (
@@ -511,30 +631,6 @@ export function WatermarkProcess() {
                 <h3 className="text-lg font-medium">水印配置</h3>
                 
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="policy">选择策略</Label>
-                    <Select value={selectedPolicy} onValueChange={setSelectedPolicy} disabled={isProcessing}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择水印策略" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {policies.map((policy) => (
-                          <SelectItem key={policy.id} value={policy.id}>
-                            <div className="flex items-center space-x-2">
-                              <span>{policy.name}</span>
-                              <Badge variant={
-                                policy.sensitivity === "high" ? "destructive" :
-                                policy.sensitivity === "medium" ? "warning" : "success"
-                              }>
-                                {policy.sensitivity === "high" ? "高密级" :
-                                 policy.sensitivity === "medium" ? "中密级" : "低密级"}
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   <div>
                     <Label htmlFor="watermark-text">水印文本</Label>
@@ -554,7 +650,7 @@ export function WatermarkProcess() {
           )}
 
           {/* 操作按钮 */}
-          {uploadedFile && (
+          {((operation === "embed" && uploadedFile) || (operation === "extract" && extractFileUrl)) && (
             <Card className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
@@ -571,8 +667,21 @@ export function WatermarkProcess() {
                   <Button variant="outline" onClick={handleReset} disabled={isProcessing}>
                     重置
                   </Button>
-                  <Button onClick={handleProcess} disabled={isProcessing}>
-                    {isProcessing ? "处理中..." : "开始处理"}
+                  <Button 
+                    onClick={handleProcess} 
+                    disabled={
+                      isProcessing || 
+                      (operation === "embed" && (!uploadedFile || !watermarkText.trim())) ||
+                      (operation === "extract" && !extractFileUrl.trim())
+                    }
+                    className="min-w-24"
+                  >
+                    {isProcessing ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>处理中...</span>
+                      </div>
+                    ) : "开始处理"}
                   </Button>
                 </div>
               </div>
@@ -611,25 +720,132 @@ export function WatermarkProcess() {
                     </Badge>
                     
                     {operation === "embed" && processingTask.result.downloadUrl && (
-                      <Button asChild className="w-full">
-                        <a href={processingTask.result.downloadUrl} download>
-                          <Download className="mr-2 h-4 w-4" />
-                          下载带水印文件
-                        </a>
-                      </Button>
+                      <div className="space-y-3">
+                        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-green-800">✅ 水印嵌入成功</h4>
+                            <div className="space-y-2 text-xs">
+                              <div>
+                                <span className="font-medium text-green-700">带水印文件URL:</span>
+                                <div className="mt-1 p-2 bg-white border border-green-200 rounded font-mono text-xs break-all">
+                                  {processingTask.result.downloadUrl}
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <p className="text-green-600">
+                                  💡 复制此URL用于水印提取操作
+                                </p>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const url = processingTask.result?.downloadUrl || '';
+                                      
+                                      // 优先使用 navigator.clipboard，降级到传统方法
+                                      if (navigator.clipboard && window.isSecureContext) {
+                                        await navigator.clipboard.writeText(url);
+                                      } else {
+                                        // 降级方案：使用传统的选择+复制方法
+                                        const textArea = document.createElement('textarea');
+                                        textArea.value = url;
+                                        textArea.style.position = 'fixed';
+                                        textArea.style.opacity = '0';
+                                        document.body.appendChild(textArea);
+                                        textArea.select();
+                                        document.execCommand('copy');
+                                        document.body.removeChild(textArea);
+                                      }
+                                      
+                                      toast({
+                                        title: "已复制",
+                                        description: "文件URL已复制到剪贴板",
+                                      });
+                                    } catch (error) {
+                                      console.error('复制失败:', error);
+                                      toast({
+                                        title: "复制失败",
+                                        description: "请手动选择URL进行复制",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  className="h-6 px-2 text-xs"
+                                >
+                                  复制URL
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <Button asChild className="w-full">
+                          <a href={processingTask.result.downloadUrl} download>
+                            <Download className="mr-2 h-4 w-4" />
+                            下载带水印文件
+                          </a>
+                        </Button>
+                      </div>
                     )}
 
                     {operation === "extract" && processingTask.result.extractedContent && (
-                      <div className="space-y-2">
-                        <Label>提取的水印内容：</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">
-                          <p className="text-sm">{processingTask.result.extractedContent}</p>
+                      <div className="space-y-3">
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-blue-800">🔍 水印提取成功</h4>
+                            <div className="space-y-2 text-xs">
+                              <div>
+                                <span className="font-medium text-blue-700">提取的水印内容:</span>
+                                <div className="mt-1 p-2 bg-white border border-blue-200 rounded font-mono text-sm break-all">
+                                  {processingTask.result.extractedContent}
+                                </div>
+                              </div>
+                              {processingTask.result.confidence && (
+                                <div className="flex justify-between items-center text-blue-600">
+                                  <span>置信度: <span className="font-medium">{Math.round(processingTask.result.confidence * 100)}%</span></span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      try {
+                                        const content = processingTask.result?.extractedContent || '';
+                                        
+                                        // 优先使用 navigator.clipboard，降级到传统方法
+                                        if (navigator.clipboard && window.isSecureContext) {
+                                          await navigator.clipboard.writeText(content);
+                                        } else {
+                                          // 降级方案：使用传统的选择+复制方法
+                                          const textArea = document.createElement('textarea');
+                                          textArea.value = content;
+                                          textArea.style.position = 'fixed';
+                                          textArea.style.opacity = '0';
+                                          document.body.appendChild(textArea);
+                                          textArea.select();
+                                          document.execCommand('copy');
+                                          document.body.removeChild(textArea);
+                                        }
+                                        
+                                        toast({
+                                          title: "已复制",
+                                          description: "水印内容已复制到剪贴板",
+                                        });
+                                      } catch (error) {
+                                        console.error('复制失败:', error);
+                                        toast({
+                                          title: "复制失败",
+                                          description: "请手动选择内容进行复制",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }}
+                                    className="h-6 px-2 text-xs"
+                                  >
+                                    复制内容
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        {processingTask.result.confidence && (
-                          <p className="text-sm text-gray-500">
-                            置信度：{processingTask.result.confidence}%
-                          </p>
-                        )}
                       </div>
                     )}
                   </div>
@@ -701,11 +917,27 @@ export function WatermarkProcess() {
                 </div>
                 
                 {isProcessing && (
-                  <div className="text-center">
+                  <div className="text-center space-y-2">
                     <div className="inline-flex items-center space-x-2 text-sm text-blue-600">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>轮询中...</span>
                     </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        clearTimers();
+                        setIsProcessing(false);
+                        toast({
+                          title: "已停止轮询",
+                          description: "手动停止任务状态查询",
+                          variant: "default"
+                        });
+                      }}
+                      className="text-xs"
+                    >
+                      停止轮询
+                    </Button>
                   </div>
                 )}
               </div>

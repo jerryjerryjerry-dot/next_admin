@@ -28,11 +28,11 @@ export function WatermarkPage() {
         </TabsTrigger>
         <TabsTrigger value="process" className="flex items-center space-x-2">
           <Shield className="h-4 w-4" />
-          <span>文件处理</span>
+          <span>水印溯源</span>
         </TabsTrigger>
         <TabsTrigger value="policies" className="flex items-center space-x-2">
           <Settings className="h-4 w-4" />
-          <span>策略管理</span>
+          <span>数字水印设置</span>
         </TabsTrigger>
         <TabsTrigger value="records" className="flex items-center space-x-2">
           <FileText className="h-4 w-4" />

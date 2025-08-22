@@ -259,7 +259,7 @@ function TrafficManagement() {
     <div className="space-y-6">
       {/* 操作按钮栏 */}
       <div className="flex items-center justify-end space-x-3">
-        <Button
+        {/* <Button
           variant="outline"
           onClick={() => refetch()}
           disabled={rulesLoading}
@@ -267,7 +267,7 @@ function TrafficManagement() {
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${rulesLoading ? 'animate-spin' : ''}`} />
           刷新
-        </Button>
+        </Button> */} 
         <Button 
           onClick={handleCreateRule} 
           className="bg-black text-white hover:bg-gray-800 border-black"

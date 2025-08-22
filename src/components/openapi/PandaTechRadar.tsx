@@ -213,12 +213,12 @@ export const PandaTechRadar: React.FC<PandaTechRadarProps> = ({
 
     // 绘制标签和状态指示器
     ctx.fillStyle = "rgba(241, 245, 249, 0.9)"; // 浅色文字
-    ctx.font = "13px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+    ctx.font = "12px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
     ctx.textAlign = "center";
     
     data.forEach((module, index) => {
       const angle = index * angleStep - Math.PI / 2;
-      const labelRadius = maxRadius + 35;
+      const labelRadius = maxRadius + 30;
       const labelX = centerX + Math.cos(angle) * labelRadius;
       const labelY = centerY + Math.sin(angle) * labelRadius;
       
@@ -227,13 +227,13 @@ export const PandaTechRadar: React.FC<PandaTechRadarProps> = ({
       ctx.fillText(module.name, labelX, labelY);
       
       // 使用率文字
-      ctx.font = "11px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+      ctx.font = "10px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
       ctx.fillStyle = "rgba(203, 213, 225, 0.8)";
-      ctx.fillText(`CPU: ${module.cpuUsage}%`, labelX, labelY + 15);
-      ctx.fillText(`内存: ${module.memoryUsage}%`, labelX, labelY + 28);
+      ctx.fillText(`CPU: ${module.cpuUsage}%`, labelX, labelY + 13);
+      ctx.fillText(`内存: ${module.memoryUsage}%`, labelX, labelY + 24);
       
       // 恢复字体
-      ctx.font = "13px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+      ctx.font = "12px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
       
       // 状态指示器 - 熊猫状态色
       const statusColors = {

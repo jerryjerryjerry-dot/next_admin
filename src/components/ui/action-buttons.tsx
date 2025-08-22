@@ -40,7 +40,7 @@ export function ActionButtons({
           </Button>
         </Tooltip>
       )}
-      
+{/*       
       {onDye && (
         <Tooltip content="执行流量染色">
           <Button
@@ -71,7 +71,7 @@ export function ActionButtons({
             <Activity className="h-4 w-4" />
           </Button>
         </Tooltip>
-      )}
+      )} */}
       
       {onReport && (
         <Tooltip content="生成分析报告">

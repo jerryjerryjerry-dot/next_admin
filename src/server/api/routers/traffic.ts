@@ -39,23 +39,33 @@ const generateTrendData = (hours: number) => {
   const baseTime = new Date('2024-01-15T00:00:00Z').getTime();
   const intervalHours = 2;
   
-  const generateValue = (base: number, growth: number, variance = 0.1) => {
+  // 创建稳定的随机数生成器
+  const createStableRandom = (seed: number) => {
+    return (offset = 0) => {
+      const x = Math.sin((seed + offset) * 12.9898) * 43758.5453;
+      return x - Math.floor(x);
+    };
+  };
+  
+  const generateValue = (base: number, growth: number, variance = 0.1, seed: number) => {
     const now = Date.now();
     const period = Math.floor((now - baseTime) / (intervalHours * 60 * 60 * 1000));
     const trend = base + (growth * period);
-    const random = 1 + (Math.random() - 0.5) * variance;
-    return Math.floor(trend * random);
+    const random = createStableRandom(seed);
+    const randomFactor = 1 + (random() - 0.5) * variance;
+    return Math.floor(trend * randomFactor);
   };
   
   for (let i = hours; i >= 0; i--) {
     const time = new Date(Date.now() - i * 60 * 60 * 1000);
+    const timeSeed = Math.floor(time.getTime() / (2 * 60 * 60 * 1000)); // 2小时周期种子
     
     data.push({
       time: time.toISOString(),
-      totalTraffic: generateValue(2000, 200, 0.3),
-      dyedTraffic: generateValue(600, 80, 0.4),
-      requests: generateValue(500, 50, 0.5),
-      errors: Math.floor(Math.random() * 10),
+      totalTraffic: generateValue(2000, 200, 0.3, timeSeed + 1),
+      dyedTraffic: generateValue(600, 80, 0.4, timeSeed + 2),
+      requests: generateValue(500, 50, 0.5, timeSeed + 3),
+      errors: Math.floor(createStableRandom(timeSeed + 4)() * 10),
     });
   }
   
@@ -141,13 +151,13 @@ export const trafficRouter = createTRPCRouter({
           return x - Math.floor(x);
         };
         
-        // 累积增长的总流量和染色流量（基础值 + 增长趋势）
-        const baseTotalTraffic = 5000000;
-        const growthRate = 50000; // 每个2小时周期增长5万
+        // 累积增长的总流量和染色流量（基础值 + 增长趋势）- 调整为GB级别
+        const baseTotalTraffic = 5000000000; // 5GB基础值
+        const growthRate = 50000000; // 每个2小时周期增长50MB
         const totalTraffic = Math.floor(baseTotalTraffic + (growthRate * twoHoursPeriod) * (0.8 + random(1) * 0.4));
         
-        const baseDyedTraffic = 2000000;
-        const dyeGrowthRate = 25000; // 染色流量增长率
+        const baseDyedTraffic = 2000000000; // 2GB基础值
+        const dyeGrowthRate = 25000000; // 染色流量增长率25MB
         const dyedTraffic = Math.floor(baseDyedTraffic + (dyeGrowthRate * twoHoursPeriod) * (0.8 + random(2) * 0.4));
         
         // 今日执行次数（累积）
@@ -157,7 +167,23 @@ export const trafficRouter = createTRPCRouter({
         
         // 随机变化的指标
         const successRate = totalRules > 0 ? ((activeRules / totalRules) * 100) : 0;
-        const avgResponseTime = Math.floor(50 + random(4) * 50); // 50-100ms
+        
+        // 平均延迟：实时更新策略  
+        const baseAvgResponseTime = Math.floor(15 + random(4) * 12); // 15-27ms基础值（确保触发<30ms）
+        let avgResponseTime;
+        
+        // 如果基础延迟 < 30ms，则使用实时随机值（每秒都不同）
+        if (baseAvgResponseTime < 30) {
+          const realTimeSeed = Math.floor(Date.now() / 1000); // 每秒变化的种子
+          const realTimeRandom = (offset = 0) => {
+            const x = Math.sin((realTimeSeed + offset) * 12.9898) * 43758.5453;
+            return x - Math.floor(x);
+          };
+          avgResponseTime = Math.floor(15 + realTimeRandom(1) * 25); // 15-40ms实时范围
+        } else {
+          avgResponseTime = baseAvgResponseTime; // 使用2小时稳定值
+        }
+        
         const errorRate = Number((random(5) * 0.5).toFixed(2)); // 0-0.5%
         const dynamicSuccessRate = Math.max(85, Math.min(99, successRate + (random(6) - 0.5) * 10));
         

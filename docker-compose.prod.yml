@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: t3-app-prod
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./prod.db
+      - NEXTAUTH_SECRET=your-production-secret-key-change-this
+      - NEXTAUTH_URL=https://yourdomain.com
+    volumes:
+      # 数据持久化
+      - ./data/database:/app/prisma
+      - ./data/uploads:/app/public/uploads
+      - app_node_modules:/app/node_modules
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: t3-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./data/uploads:/var/www/uploads:ro
+      - ./ssl:/etc/nginx/ssl:ro  # SSL证书目录
+      - nginx_cache:/var/cache/nginx
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # 可选：添加Redis缓存
+  redis:
+    image: redis:alpine
+    container_name: t3-redis-prod
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  app_node_modules:
+  nginx_cache:
+  nginx_logs:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge

@@ -131,16 +131,27 @@ export const authRouter = createTRPCRouter({
       });
 
       // 在生产环境中，这里应该发送真实邮件
-      // 现在模拟在控制台打印
+      // 现在模拟在控制台打印 - 服务器端日志
+      console.log(`\n🔔 ===== 验证码发送 =====`);
       console.log(`🔑 重置密码验证码: ${code}`);
       console.log(`📧 发送到邮箱: ${email}`);
       console.log(`⏰ 有效期: 10分钟`);
+      console.log(`🌐 环境: ${process.env.NODE_ENV}`);
+      console.log(`📅 发送时间: ${new Date().toLocaleString('zh-CN')}`);
+      console.log(`🔔 ========================\n`);
 
       return {
         success: true,
-        message: "验证码已发送，请查看控制台",
+        message: process.env.NODE_ENV === "development" 
+          ? `验证码已生成: ${code} (开发模式显示)` 
+          : "验证码已发送到您的邮箱",
         // 在实际生产中不应该返回验证码
         debugCode: process.env.NODE_ENV === "development" ? code : undefined,
+        debugInfo: process.env.NODE_ENV === "development" ? {
+          email,
+          generatedAt: new Date().toISOString(),
+          expiresIn: "10分钟"
+        } : undefined,
       };
     }),
 

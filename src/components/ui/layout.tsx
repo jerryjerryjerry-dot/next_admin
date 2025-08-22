@@ -199,7 +199,7 @@ function Sidebar() {
       roles: ["admin"] // 只有admin可以访问
     },
     {
-      name: "水印系统",
+      name: "数字水印",
       href: "/watermark",
       icon: <Shield className="h-5 w-5" />,
       description: "数字水印保护",
@@ -299,7 +299,7 @@ function Breadcrumb() {
       "/traffic": { name: "流量管理", desc: "网络流量监控与分析" },
       "/user-management": { name: "用户管理", desc: "用户账号权限管理" },
       "/openapi": { name: "API管理", desc: "接口密钥与监控中心" },
-      "/watermark": { name: "水印系统", desc: "数字水印保护服务" },
+      "/watermark": { name: "数字水印", desc: "数字水印保护服务" },
       "/admin": { name: "系统设置", desc: "系统配置与权限管理" },
     };
     return routes[path] ?? { name: "页面", desc: "系统页面" };
